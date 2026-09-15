@@ -1,13 +1,26 @@
 /**
  * Session-replay data access (#58/#67).
  *
- * Wire contract (written by @nais/apm's ReplayInstrumentation, flattened by
- * Alloy's faro.receiver into logfmt `event_data_<key>` fields):
+ * TWO wire contracts are supported, both flattened by Alloy's faro.receiver into logfmt
+ * `event_data_<key>` fields.
+ *
+ * A. @nais/apm's ReplayInstrumentation - batched, compressed:
  *
  *   kind=event event_name=faro.session_recording.chunk session_id=<sid>
  *   event_data_chunk_seq=<n> event_data_mode=snapshot|recording
  *   event_data_enc=gzip+b64 event_data_count=<events in chunk>
  *   event_data_data=<base64(gzip(JSON rrweb eventWithTime[]))>
+ *
+ * B. The upstream Grafana SDK, @grafana/faro-instrumentation-replay - one event per line,
+ *    uncompressed:
+ *
+ *   kind=event event_name=faro.session_recording.event session_id=<sid>
+ *   event_data_event=<JSON rrweb eventWithTime>
+ *
+ * B carries no sequence number, no mode and no encoding, so its events are ordered by their
+ * own rrweb timestamp and reported as a continuous "recording". A session is read in ONE
+ * format: chunks win when present, so nothing about A's behaviour changes and a deployment
+ * that emits only A takes the identical code path it always did.
  *
  * Today chunks land under kind="event"; the future Alloy pipeline relabels
  * the stream to kind="replay" (dedicated 7d retention), so all queries here
@@ -73,7 +86,29 @@ function buildReplayPipeline(opts: ReplayQueryOptions): string {
   const envLabel = opts.environmentLabel || otel.labels.deploymentEnv;
   const envStream = opts.environment ? `, ${envLabel}="${sanitizeLabelValue(opts.environment)}"` : '';
   const selector = `{${fl.serviceName}="${service}", ${fl.kind}=~"${fl.kindEvent}|${fl.kindReplay}"${envStream}}`;
-  return `${selector} |= \`${fl.replayChunkEvent}\` |= \`${sessionId}\` | logfmt | ${fl.sessionId}="${sessionId}"`;
+  // A regex line filter rather than two `|=` terms: `|=` clauses are ANDed, so requiring both
+  // event names would match nothing at all. Dots are escaped because this is a regex now.
+  const eventNames = [fl.replayChunkEvent, fl.replayEventEvent].map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  return `${selector} |~ \`${eventNames}\` |= \`${sessionId}\` | logfmt | ${fl.sessionId}="${sessionId}"`;
+}
+
+/**
+ * Decode one single-event payload (format B): plain JSON rrweb eventWithTime.
+ *
+ * Returns null instead of throwing on anything that is not a usable event. One malformed
+ * line in a session of thousands must not take the whole replay down, and an rrweb player
+ * fed an object without a numeric `type`/`timestamp` fails far less legibly than a skip.
+ */
+export function decodeReplayEvent(json: string): ReplayEventWithTime | null {
+  try {
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed.type === 'number' && typeof parsed.timestamp === 'number') {
+      return parsed as ReplayEventWithTime;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
 }
 
 /** Decode one chunk payload: base64 → gunzip → JSON rrweb eventWithTime[]. */
@@ -88,9 +123,33 @@ export function decodeReplayChunk(b64: string): ReplayEventWithTime[] {
 }
 
 /**
- * Fetch and reassemble all replay chunks for a session: query Loki via the
- * datasource proxy, order by chunk_seq, gunzip and concatenate the rrweb
- * events. Returns null when the session has no chunks in the range.
+ * Order and de-duplicate single-event (format B) lines.
+ *
+ * There is no sequence number to sort on, so the rrweb timestamp is the ordering key - which
+ * is what the player uses anyway. De-duplication is by timestamp AND type together: Loki
+ * retries can deliver the same line twice, while two genuinely different events can share a
+ * millisecond, and dropping one of those would silently lose a DOM mutation.
+ */
+function assembleSingles(events: ReplayEventWithTime[]): ReplayData {
+  const seen = new Set<string>();
+  const unique: ReplayEventWithTime[] = [];
+  for (const event of events) {
+    const key = `${event.timestamp}:${event.type}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    unique.push(event);
+  }
+  unique.sort((a, b) => a.timestamp - b.timestamp);
+  // "recording" because this SDK streams continuously; it has no snapshot-only mode to report.
+  return { events: unique, mode: 'recording', chunkCount: unique.length };
+}
+
+/**
+ * Fetch and reassemble a session's replay: query Loki via the datasource proxy, then either
+ * order chunks by chunk_seq and gunzip them (format A) or order single events by their rrweb
+ * timestamp (format B). Returns null when the session has neither in the range.
  */
 export async function fetchReplay(opts: ReplayQueryOptions): Promise<ReplayData | null> {
   const res = await lastValueFrom(
@@ -107,25 +166,33 @@ export async function fetchReplay(opts: ReplayQueryOptions): Promise<ReplayData 
     })
   );
 
+  const fl = otel.faroLoki;
   const streams = res.data?.data?.result ?? [];
   const chunks: Array<{ seq: number; mode?: string; enc?: string; data: string }> = [];
+  const singles: ReplayEventWithTime[] = [];
   streams.forEach((stream: any) => {
     (stream.values ?? []).forEach((val: [string, string]) => {
       const p = parseLogfmt(val[1]);
-      if (!p.event_data_data) {
+      if (p[fl.replayChunkField]) {
+        chunks.push({
+          seq: Number(p.event_data_chunk_seq),
+          mode: p.event_data_mode,
+          enc: p.event_data_enc,
+          data: p[fl.replayChunkField],
+        });
         return;
       }
-      chunks.push({
-        seq: Number(p.event_data_chunk_seq),
-        mode: p.event_data_mode,
-        enc: p.event_data_enc,
-        data: p.event_data_data,
-      });
+      const single = p[fl.replayEventField] ? decodeReplayEvent(p[fl.replayEventField]) : null;
+      if (single) {
+        singles.push(single);
+      }
     });
   });
 
+  // Chunks win: a session that has them is a @nais/apm session and takes the original path
+  // untouched. Only a session with no chunks at all falls through to the single-event format.
   if (chunks.length === 0) {
-    return null;
+    return singles.length > 0 ? assembleSingles(singles) : null;
   }
 
   chunks.sort((a, b) => a.seq - b.seq);
@@ -188,6 +255,11 @@ export async function probeReplay(opts: ReplayQueryOptions): Promise<ReplayProbe
       mode = 'recording';
     } else if (sampleMode === 'snapshot' && mode !== 'recording') {
       mode = 'snapshot';
+    } else if (!sampleMode && mode !== 'recording') {
+      // Format B lines carry no mode label, so the series comes back with it absent. Without
+      // this branch a session recorded by the upstream SDK probes as "has chunks, mode null"
+      // and the drawer offers neither Play nor View snapshot - data present, no way in.
+      mode = 'recording';
     }
   }
 

@@ -120,6 +120,14 @@ export const otel = {
     // queries must match both during the transition.
     kindReplay: 'replay',
     replayChunkEvent: 'faro.session_recording.chunk',
+    // Second supported wire format: the upstream Grafana Faro SDK
+    // (@grafana/faro-instrumentation-replay) emits ONE rrweb event per line under
+    // `faro.session_recording.event`, with the event as plain JSON in
+    // `event_data_event` - no chunking, no gzip, no sequence number. @nais/apm's own
+    // ReplayInstrumentation batches instead. Both are read; see replay/fetchReplay.ts.
+    replayEventEvent: 'faro.session_recording.event',
+    replayEventField: 'event_data_event',
+    replayChunkField: 'event_data_data',
     // logfmt field names
     typeField: 'type',
     typeWebVitals: 'web-vitals',

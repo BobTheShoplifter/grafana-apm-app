@@ -54,6 +54,21 @@ describe('parseLogfmt', () => {
     expect(parsed.page_id).toBe('/checkout');
   });
 
+  it('keeps a quoted JSON value whole instead of truncating at its first inner quote', () => {
+    // How Alloy writes a session-replay event: JSON inside a quoted logfmt value. Stopping at
+    // the first escaped quote would yield `{` and every replay would decode to nothing.
+    const line = 'kind=event event_name=faro.session_recording.event event_data_event="{\\"type\\":4,\\"timestamp\\":10}" session_id=sess-1';
+    const p = parseLogfmt(line);
+    expect(p.event_data_event).toBe('{"type":4,"timestamp":10}');
+    // and the fields after it are still parsed, rather than swallowed by a runaway value
+    expect(p.session_id).toBe('sess-1');
+  });
+
+  it('leaves an escaped newline as the two characters it is on the wire', () => {
+    // stacktrace rendering does its own replacement and would double-process an unescaped one.
+    expect(parseLogfmt('stacktrace="a\\nb"').stacktrace).toBe('a\\nb');
+  });
+
   it('returns an empty object for an empty line', () => {
     expect(parseLogfmt('')).toEqual({});
   });
@@ -62,14 +77,13 @@ describe('parseLogfmt', () => {
     expect(parseLogfmt('dangling_key')).toEqual({});
   });
 
-  it('documents current behavior for backslash-escaped quotes inside a quoted value', () => {
-    // The regex has no escape handling: it treats the first literal `"` as
-    // the closing quote regardless of a preceding backslash, so an escaped
-    // quote truncates the captured value. This is a characterization test
-    // of existing behavior, not a spec — parseLogfmt was extracted verbatim
-    // (zero behavior change) as part of #70 item 2.
+  it('reads a backslash-escaped quote as part of the value, not as its closing quote', () => {
+    // Was a characterization test of a limitation: the regex had no escape handling, so the
+    // first literal `"` ended the value and `msg` came back as the fragment 'he said \\'.
+    // Any field whose value is quoted text or JSON lost everything after its first inner
+    // quote, which is what made session-replay events undecodable.
     const result = parseLogfmt('msg="he said \\"hi\\" to me"');
-    expect(result.msg).toBe('he said \\');
+    expect(result.msg).toBe('he said "hi" to me');
   });
 });
 

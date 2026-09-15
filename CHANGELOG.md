@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.24.1
+
+### Features
+
+* read session replays recorded by the upstream Grafana Faro SDK, not only @nais/apm's
+  chunked format. `@grafana/faro-instrumentation-replay` writes one rrweb event per line
+  under `faro.session_recording.event` with the event as plain JSON in `event_data_event`;
+  those are now ordered by rrweb timestamp and played like any other session. Chunks still
+  win when a session has them, so the @nais/apm path is unchanged.
+
+### Bug Fixes
+
+* parseLogfmt no longer truncates a quoted value at its first escaped quote. Any field whose
+  value is quoted text or JSON lost everything after that point, which made replay events
+  undecodable and cut exception messages short.
+
 ## [0.24.0](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.23.1...nais-apm-app-v0.24.0) (2026-09-05)
 
 

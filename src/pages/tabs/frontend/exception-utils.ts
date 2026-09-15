@@ -33,17 +33,30 @@ export interface GroupedBreadcrumb {
 /**
  * Minimal logfmt parser for Faro/Alloy log lines: `key=value key="quoted value"`.
  * Quoted values may contain spaces and `=`; unquoted values stop at whitespace.
- * Does not unescape backslash sequences inside quotes (callers that need raw
- * newlines, e.g. stacktrace, do their own `\\n` → `\n` replacement).
+ *
+ * Quoted values may also contain ESCAPED QUOTES, and the value runs to the closing quote
+ * rather than to the first `"` of any kind. This matters for any field whose value is itself
+ * JSON - Alloy writes those as `key="{\\"type\\":3}"` - where stopping at the first inner quote
+ * truncates the value to a fragment that parses as nothing. Session-replay events are the
+ * case that forced this; exception `value` fields quoting a message hit it too.
+ *
+ * Unescapes ONLY `\\"` and `\\\\`. A `\\n` stays the two characters it is on the wire, because
+ * callers that want real newlines (stacktrace rendering) already do that replacement
+ * themselves and would double-process an unescaped one.
  */
+function unescapeLogfmt(value: string): string {
+  return value.replace(/\\(.)/g, (whole, ch) => (ch === '"' || ch === '\\' ? ch : whole));
+}
+
 export function parseLogfmt(line: string): Record<string, string> {
   const result: Record<string, string> = {};
-  const regex = /([a-zA-Z0-9_-]+)=(?:"([^"]*)"|([^\s]+))/g;
+  // `(?:[^"\\]|\\.)*` = any run of non-quote non-backslash characters, or any escaped pair,
+  // which is what lets an escaped quote sit inside the value instead of ending it.
+  const regex = /([a-zA-Z0-9_-]+)=(?:"((?:[^"\\]|\\.)*)"|([^\s]+))/g;
   let match;
   while ((match = regex.exec(line)) !== null) {
     const key = match[1];
-    const val = match[2] !== undefined ? match[2] : match[3];
-    result[key] = val;
+    result[key] = match[2] !== undefined ? unescapeLogfmt(match[2]) : match[3];
   }
   return result;
 }
