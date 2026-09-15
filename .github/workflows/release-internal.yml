@@ -1,0 +1,91 @@
+# Build the plugin and attach an UNSIGNED zip to a GitHub release, for private installs.
+#
+# WHY NOT THE EXISTING release.yml. That one calls grafana/plugin-actions/build-plugin, which
+# ends in @grafana/plugin-validator - the gate for publishing to the public Grafana catalogue.
+# It fails the whole job on a HIGH osv-scanner finding in an upstream Go dependency
+# (google.golang.org/grpc), after the zip has already been built successfully. That gate is
+# about catalogue admission, which does not apply to a plugin installed from a URL into one
+# private Grafana, and the action exposes no input to skip it. So this workflow does the same
+# build with the pieces we need and stops there.
+#
+# The result is deliberately UNSIGNED. A signature binds a plugin to specific root URLs, and
+# the upstream one only permits its own domains - which is why installing the official release
+# needed an init container to strip MANIFEST.txt before Grafana would load it. No signature
+# means no such binding: Grafana takes the zip straight from GF_PLUGINS_PREINSTALL_SYNC as long
+# as the id is in GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS, and the init container is gone.
+#
+# Run it by hand against a tag: gh workflow run "Release (internal)" --ref vX.Y.Z
+name: Release (internal)
+
+on:
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+
+      - uses: actions/setup-go@v5
+        with:
+          # Must match the `go` directive in go.mod. A toolchain older than the module
+          # requires makes mage fail while merely PARSING the magefile, and the error says
+          # nothing about Go versions.
+          go-version-file: go.mod
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        run: pnpm build
+
+      - name: Build backend
+        # Linux only: this is installed into Grafana on Kubernetes. Grafana picks the binary
+        # matching its own arch at load time, so amd64 and arm64 cover every node we run.
+        run: |
+          go install github.com/magefile/mage@latest
+          mage -v build:linux build:linuxARM64
+
+      - name: Package
+        id: package
+        run: |
+          PLUGIN_ID=$(node -p "require('./src/plugin.json').id")
+          VERSION=$(node -p "require('./package.json').version")
+          # Grafana expects the archive to contain ONE top-level directory named after the
+          # plugin id; unpacking dist/ under any other name makes it refuse to load.
+          mkdir -p "pkgroot/${PLUGIN_ID}"
+          cp -r dist/* "pkgroot/${PLUGIN_ID}/"
+          # Belt and braces: an unsigned build has no MANIFEST.txt, but a stale one would make
+          # Grafana verify a signature against files that have changed and reject the plugin.
+          rm -f "pkgroot/${PLUGIN_ID}/MANIFEST.txt"
+          ARCHIVE="${PLUGIN_ID}-${VERSION}.zip"
+          (cd pkgroot && zip -qr "../${ARCHIVE}" "${PLUGIN_ID}")
+          sha1sum "${ARCHIVE}" > "${ARCHIVE}.sha1"
+          echo "archive=${ARCHIVE}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          unzip -l "${ARCHIVE}" | head -20
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 \
+            && gh release upload "$TAG" "$ARCHIVE" "$ARCHIVE.sha1" --clobber \
+            || gh release create "$TAG" "$ARCHIVE" "$ARCHIVE.sha1" \
+                 --title "$TAG" \
+                 --notes "Unsigned build for private installation. See CHANGELOG.md."
