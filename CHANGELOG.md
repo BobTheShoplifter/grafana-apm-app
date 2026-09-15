@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.24.4
+
+### Bug Fixes
+
+* the replay player no longer goes through @grafana/rrweb-player. That wrapper renders its
+  shell and stops: `.rr-player` with an EMPTY `.rr-player__frame`, no controller, no iframe
+  and no exception, because its controller is gated on an internal `replayer` variable that
+  is never assigned. Reproduced outside the browser against a real 124-event session, where
+  `new Replayer(events, {root})` built a working wrapper from the same events. The Replayer
+  is now driven directly, with play/pause, a scrubber and a speed control, and the recorded
+  viewport is scaled to fit rather than overflowing.
+
 ## 0.24.3
 
 ### Bug Fixes

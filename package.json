@@ -1,6 +1,6 @@
 {
   "name": "application-observability",
-  "version": "0.24.3",
+  "version": "0.24.4",
   "author": "Nais",
   "license": "Apache-2.0",
   "repository": {
@@ -79,6 +79,7 @@
     "@grafana/data": "13.1.1",
     "@grafana/i18n": "13.1.1",
     "@grafana/rrweb-player": "2.0.0-grafana.2",
+    "@grafana/rrweb-replay": "2.0.0-grafana.2",
     "@grafana/runtime": "13.1.1",
     "@grafana/scenes": "8.13.6",
     "@grafana/schema": "13.1.1",
