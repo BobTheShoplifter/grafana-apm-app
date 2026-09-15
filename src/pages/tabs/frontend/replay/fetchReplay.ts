@@ -134,7 +134,11 @@ function assembleSingles(events: ReplayEventWithTime[]): ReplayData {
   const seen = new Set<string>();
   const unique: ReplayEventWithTime[] = [];
   for (const event of events) {
-    const key = `${event.timestamp}:${event.type}`;
+    // The WHOLE event is the key. An earlier version keyed on timestamp+type, which looked
+    // sufficient and is not: a burst of DOM mutations routinely lands several distinct type-3
+    // events on the same millisecond, and collapsing those silently drops real changes - the
+    // replay then plays back a page that never updates.
+    const key = JSON.stringify(event);
     if (seen.has(key)) {
       continue;
     }

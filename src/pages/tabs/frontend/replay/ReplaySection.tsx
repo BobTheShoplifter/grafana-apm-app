@@ -4,7 +4,7 @@
  * lazy-loaded rrweb player. This module is cheap and eagerly bundled — only
  * the player itself (LazyReplayPlayer → ReplayPlayer) lives in a lazy chunk.
  */
-import React, { Suspense, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { Alert, Button, Spinner } from '@grafana/ui';
 import { fetchReplay, ReplayData, ReplayMode, ReplayQueryOptions } from './fetchReplay';
 import { LazyReplayPlayer } from './LazyReplayPlayer';
@@ -17,9 +17,16 @@ export interface ReplaySectionProps extends ReplayQueryOptions {
   mode: ReplayMode;
   /** Absolute epoch-ms of the exception, when derivable — recordings seek to this minus 10s. */
   exceptionTsMs?: number;
+  /**
+   * Fetch immediately instead of waiting for the button. For callers where choosing the
+   * session IS the click - the session list - so the viewer is not made to press twice.
+   * The drawer leaves this off: there the replay is one detail among many and loading a
+   * session's frames unasked would be wasteful.
+   */
+  autoLoad?: boolean;
 }
 
-export function ReplaySection({ mode, exceptionTsMs, ...query }: ReplaySectionProps) {
+export function ReplaySection({ mode, exceptionTsMs, autoLoad, ...query }: ReplaySectionProps) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [data, setData] = useState<ReplayData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +50,15 @@ export function ReplaySection({ mode, exceptionTsMs, ...query }: ReplaySectionPr
       setStatus('error');
     }
   };
+
+  // Callers that pass autoLoad key this component by session, so a mount means a new
+  // session and exactly one fetch.
+  useEffect(() => {
+    if (autoLoad && status === 'idle') {
+      void load();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoLoad]);
 
   if (status === 'idle') {
     const snapshot = mode === 'snapshot';

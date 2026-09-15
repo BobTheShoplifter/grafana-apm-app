@@ -14,7 +14,7 @@
  * not have to rebuild on every refresh tick just to hand this component two numbers.
  */
 import React, { useEffect, useState } from 'react';
-import { Alert, LoadingPlaceholder, useStyles2 } from '@grafana/ui';
+import { Alert, Button, LoadingPlaceholder, useStyles2 } from '@grafana/ui';
 import { GrafanaTheme2, dateTimeFormat } from '@grafana/data';
 import { css } from '@emotion/css';
 import { listReplaySessions, ReplaySessionSummary } from './fetchReplay';
@@ -40,6 +40,7 @@ export function ReplaySessions({ logsUid, service, environment, environmentLabel
   const styles = useStyles2(getStyles);
   const { fromMs, toMs } = useTimeRange();
   const [loaded, setLoaded] = useState<LoadedSessions | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
   const requestKey = `${logsUid}|${service}|${fromMs}|${toMs}|${environment ?? ''}|${environmentLabel ?? ''}`;
 
@@ -108,38 +109,57 @@ export function ReplaySessions({ logsUid, service, environment, environmentLabel
         </thead>
         <tbody>
           {loaded.sessions.map((session) => (
-            <tr key={session.sessionId}>
+            <tr key={session.sessionId} className={session.sessionId === selected ? styles.selected : undefined}>
               <td>{dateTimeFormat(session.lastSeenMs)}</td>
               {/* Monospace: session ids get compared by eye against a log line or a trace. */}
               <td className={styles.mono}>{session.sessionId}</td>
               <td className={styles.numeric}>{session.events.toLocaleString()}</td>
               <td>
-                <ReplaySection
-                  // Remount per session so the player never shows the previous one's frames
-                  // while the next is still loading.
-                  key={session.sessionId}
-                  mode="recording"
-                  logsUid={logsUid}
-                  service={service}
-                  sessionId={session.sessionId}
-                  fromMs={fromMs}
-                  toMs={toMs}
-                  environment={environment}
-                  environmentLabel={environmentLabel}
-                />
+                <Button
+                  size="sm"
+                  icon="play"
+                  variant={session.sessionId === selected ? 'primary' : 'secondary'}
+                  onClick={() => setSelected(session.sessionId)}
+                >
+                  Play
+                </Button>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {/*
+        The player renders HERE, at full width, and NOT inside the row's cell.
+        rrweb sizes its canvas from the container's clientWidth at mount and never
+        re-measures: mounted in a table cell it came up a few pixels wide, which presents as
+        an empty white rr-player__frame with the replay technically playing inside it.
+      */}
+      {selected && (
+        <div className={styles.player}>
+          <ReplaySection
+            // Remount per session, so the player never shows the previous one's frames while
+            // the next is still loading.
+            key={selected}
+            autoLoad
+            mode="recording"
+            logsUid={logsUid}
+            service={service}
+            sessionId={selected}
+            fromMs={fromMs}
+            toMs={toMs}
+            environment={environment}
+            environmentLabel={environmentLabel}
+          />
+        </div>
+      )}
     </div>
   );
 }
 
 const getStyles = (theme: GrafanaTheme2) => ({
   wrapper: css({
-    // The player expands in place inside a row, so the container must not clip it.
-    overflowX: 'auto',
+    width: '100%',
   }),
   table: css({
     width: '100%',
@@ -158,6 +178,14 @@ const getStyles = (theme: GrafanaTheme2) => ({
   }),
   mono: css({
     fontFamily: theme.typography.fontFamilyMonospace,
+  }),
+  selected: css({
+    background: theme.colors.background.secondary,
+  }),
+  player: css({
+    // Full width and its own block, which is what the player measures itself against.
+    width: '100%',
+    marginTop: theme.spacing(2),
   }),
   numeric: css({
     textAlign: 'right',

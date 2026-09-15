@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.24.3
+
+### Bug Fixes
+
+* the session-replay player is no longer mounted inside a table cell. rrweb sizes its canvas
+  from the container's clientWidth at mount and never re-measures, so a cell-width container
+  produced an empty white rr-player__frame with the replay playing inside it at a few pixels
+  across. The player now renders full width below the list, and selecting a row loads it in
+  one click rather than two.
+* replay events are de-duplicated on the whole event rather than on timestamp+type. A burst
+  of DOM mutations routinely puts several distinct type-3 events on one millisecond, and
+  collapsing those dropped real changes - the replay played back a page that never updated.
+
 ## 0.24.2
 
 ### Features
