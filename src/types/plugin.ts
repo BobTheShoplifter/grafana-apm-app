@@ -17,6 +17,17 @@ export interface EnvAwareDs {
 export interface LabelOverrides {
   /** Default: "service_name". Tempo metrics generator emits "service". */
   serviceNameLabel?: string;
+  /**
+   * Label that identifies a service in LOKI. Default: "service_name".
+   *
+   * Separate from serviceNameLabel on purpose. That one names a service in PROMETHEUS span
+   * metrics, and the two are different namespaces that different pipelines write: Tempo's
+   * metrics generator emits `service` on its span metrics while the log pipeline still writes
+   * `service_name` on its streams. Before this existed, overriding the metrics label silently
+   * repointed every log query and every Logs Drilldown link at a label Loki does not have, and
+   * the Logs tab came up empty with a link that filtered on nothing.
+   */
+  logsServiceNameLabel?: string;
   /** Default: "service_namespace". Use "k8s_namespace_name" for Tempo with k8s.namespace.name dimension. */
   serviceNamespaceLabel?: string;
   /** Default: "k8s_cluster_name". */

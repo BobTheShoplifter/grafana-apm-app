@@ -348,18 +348,60 @@ func (a *App) checkLokiLogs(ctx context.Context, headers http.Header, token, ser
 	}
 
 	body, err := a.proxyGET(ctx, headers, token, base+"/loki/api/v1/index/stats?"+q.Encode())
+	if err == nil {
+		var parsed struct {
+			Streams int64 `json:"streams"`
+			Entries int64 `json:"entries"`
+		}
+		if jsonErr := json.Unmarshal(body, &parsed); jsonErr == nil && (parsed.Streams > 0 || parsed.Entries > 0) {
+			return true
+		}
+	} else {
+		// WARN, not DEBUG. This decides a readiness badge that tells a team their logs are
+		// missing, so a probe that cannot run is worth saying out loud - a silent false here
+		// is indistinguishable from a real absence of logs, which is how this went unnoticed.
+		log.DefaultLogger.Warn("Scorecard loki index/stats probe failed, falling back to a count query",
+			"service", service, "error", err)
+	}
+
+	// FALLBACK. index/stats is an index-level endpoint: it answers from TSDB index metadata,
+	// and it can legitimately report nothing while the logs are plainly queryable - an index
+	// period that has not been written yet, a deployment whose index type does not implement
+	// it, or a window that falls between index files. Observed in the field: a service with
+	// thousands of entries in the window returned zero streams from stats, while the identical
+	// selector through query_range returned them.
+	//
+	// So fall back to asking for the data itself. It is a heavier query, which is why it is
+	// second rather than first, and `limit=1` keeps it to a single line: the question is
+	// whether ANY log exists, not what it says.
+	q.Set("limit", "1")
+	q.Set("direction", "backward")
+	// query_range wants nanoseconds where index/stats took seconds. Getting this wrong returns
+	// an empty result rather than an error, which would look exactly like "no logs".
+	q.Set("start", fmt.Sprintf("%d", at.Add(-scorecardTraceLookback).UnixNano()))
+	q.Set("end", fmt.Sprintf("%d", at.UnixNano()))
+
+	body, err = a.proxyGET(ctx, headers, token, base+"/loki/api/v1/query_range?"+q.Encode())
 	if err != nil {
-		log.DefaultLogger.Debug("Scorecard loki probe failed", "error", err)
+		log.DefaultLogger.Warn("Scorecard loki query_range probe failed", "service", service, "error", err)
 		return false
 	}
-	var parsed struct {
-		Streams int64 `json:"streams"`
-		Entries int64 `json:"entries"`
+	var ranged struct {
+		Data struct {
+			Result []struct {
+				Values [][]any `json:"values"`
+			} `json:"result"`
+		} `json:"data"`
 	}
-	if err := json.Unmarshal(body, &parsed); err != nil {
+	if err := json.Unmarshal(body, &ranged); err != nil {
 		return false
 	}
-	return parsed.Streams > 0 || parsed.Entries > 0
+	for _, stream := range ranged.Data.Result {
+		if len(stream.Values) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // checkAlertRules scans Mimir ruler rules and Grafana-managed rules for any

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.24.5
+
+### Bug Fixes
+
+* log queries and Logs Drilldown links use a LOKI service label again. `serviceNameLabel`
+  names a service in Prometheus span metrics; a pipeline can emit `service` there while its
+  log streams carry `service_name`, and overriding the metrics label was silently repointing
+  every log query and deep link at a label Loki does not have. Loki now has its own
+  `logsServiceNameLabel`, defaulting to `service_name`.
+* the Loki readiness badge falls back to a `query_range` probe when `index/stats` reports
+  nothing. That endpoint answers from index metadata and can return zero streams for a
+  service whose logs are plainly queryable, which showed as "Logs in Loki" missing for every
+  service. A probe that cannot run is now logged at WARN rather than DEBUG: a silent false
+  is indistinguishable from a real absence of logs.
+* `environment` is no longer carried across navigation. One link that happened to know an
+  environment pinned that filter on every page after it, with nothing showing where the
+  value came from. Links that need one still pass it explicitly.
+
 ## 0.24.4
 
 ### Bug Fixes

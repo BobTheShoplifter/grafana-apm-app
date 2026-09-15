@@ -56,7 +56,9 @@ export function LogsTab({
   logsUid,
   from,
   to,
-  serviceNameLabel = otel.labels.serviceName,
+  // Defaults to the LOKI service label, not the span-metrics one: this tab queries log
+  // streams, and the two names come from different pipelines.
+  serviceNameLabel = otel.faroLoki.serviceName,
   clusterFilter,
 }: LogsTabProps) {
   const [severityFilter, setSeverityFilter] = useUrlCsv('logSeverity');

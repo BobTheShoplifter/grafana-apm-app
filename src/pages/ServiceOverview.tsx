@@ -543,7 +543,10 @@ function ServiceOverviewInner({ namespace, service }: { namespace: string; servi
                   logsUid={ds.logsUid}
                   from={from}
                   to={to}
-                  serviceNameLabel={labelOverrides.serviceNameLabel}
+                  // The LOKI label, not the span-metrics one. Overriding serviceNameLabel for
+                  // Tempo-generated span metrics must not repoint log queries at a label the
+                  // log pipeline never writes.
+                  serviceNameLabel={labelOverrides.logsServiceNameLabel}
                   clusterFilter={!ds.isLogsEnvSpecific ? envFilter || undefined : undefined}
                 />
               </ErrorBoundary>

@@ -200,11 +200,16 @@ export function buildLogsDrilldownUrl(
     serviceNamespaceLabel?: string;
   }
 ): string {
-  const svcLabel = options?.serviceNameLabel || otel.labels.serviceName;
+  // LOKI labels. Logs live under the log pipeline's names, which are not the span-metric
+  // names: a deployment can emit `service` on its metrics and `service_name` on its streams,
+  // and a link built from the metrics name filters on a label Loki has never heard of.
+  const svcLabel = options?.serviceNameLabel || otel.faroLoki.serviceName;
+  // faroLoki has no namespace label of its own; the conventional Loki spelling matches the
+  // metrics one here, so the shared default is correct rather than coincidental.
   const nsLabel = options?.serviceNamespaceLabel || otel.labels.serviceNamespace;
-  // Logs Drilldown special-cases the default service label as the friendlier `service` path slug;
-  // any other (overridden) label is used verbatim.
-  const pathLabel = svcLabel === otel.labels.serviceName ? 'service' : svcLabel;
+  // Logs Drilldown special-cases the conventional `service_name` label as the friendlier
+  // `service` path slug; any other label is used verbatim.
+  const pathLabel = svcLabel === otel.faroLoki.serviceName ? 'service' : svcLabel;
 
   const filters = [`${svcLabel}|=|${escapeDrilldownFilterValue(serviceName)}`];
   if (options?.namespace) {

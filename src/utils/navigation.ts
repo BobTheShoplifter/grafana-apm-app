@@ -2,12 +2,23 @@ import { useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PLUGIN_BASE_URL } from '../constants';
 
-/** Query params that are preserved across navigation. */
+/**
+ * Query params that are preserved across navigation.
+ *
+ * `environment` is NOT one of them, deliberately. It used to be, and the effect was that the
+ * moment any link set it - following a service row out of an inventory that happens to know
+ * one - every subsequent page inherited that filter and kept it, with no indication of where
+ * it came from. The default is "All environments"; it should take a deliberate act to leave
+ * it, and a deliberate act to come back. A filter you did not choose and cannot see the origin
+ * of is worse than no filter.
+ *
+ * A link that genuinely needs an environment still carries it explicitly in its own href; this
+ * list only governs what is inherited from the CURRENT url.
+ */
 const PRESERVED_PARAMS = [
   'from',
   'to',
   'namespace',
-  'environment',
   'sdk',
   'sort',
   'dir',
@@ -29,7 +40,7 @@ export function sanitizeParam(value: string): string {
 
 /**
  * Navigation hook that preserves time range and filter params across pages.
- * Carries: from, to, namespace, environment.
+ * Carries: from, to, namespace. NOT environment - see PRESERVED_PARAMS.
  */
 export function useAppNavigate() {
   const navigate = useNavigate();

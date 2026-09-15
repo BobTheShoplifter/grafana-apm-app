@@ -14,7 +14,7 @@ function buildNavigationURL(
   currentParams: Record<string, string>,
   extraParams?: Record<string, string>
 ): string {
-  const PRESERVED_PARAMS = ['from', 'to', 'namespace', 'environment', 'sort', 'dir', 'q', 'pageSize'];
+  const PRESERVED_PARAMS = ['from', 'to', 'namespace', 'sort', 'dir', 'q', 'pageSize'];
   const params = new URLSearchParams();
   for (const key of PRESERVED_PARAMS) {
     const raw = currentParams[key];
@@ -47,13 +47,17 @@ describe('buildNavigationURL', () => {
     expect(url.match(/\?/g)?.length).toBe(1);
   });
 
-  it('preserves environment from current params', () => {
+  it('does NOT carry environment over from the current params', () => {
+    // It used to. The effect was a filter nobody chose: one link that happened to know an
+    // environment pinned every page after it, with no sign of where the value came from.
     const url = buildNavigationURL('dependencies/foo', { environment: 'prod-fss', from: '1000', to: '2000' });
-    expect(url).toContain('environment=prod-fss');
+    expect(url).not.toContain('environment');
+    expect(url).toContain('from=1000');
     expect(url.match(/\?/g)?.length).toBe(1);
   });
 
-  it('extraParams override preserved environment', () => {
+  it('still sets environment when a link asks for it explicitly', () => {
+    // A link that genuinely needs one passes it; only inheritance from the current url stops.
     const url = buildNavigationURL('services/ns/svc', { environment: 'dev-fss' }, { environment: 'prod-fss' });
     expect(url).toContain('environment=prod-fss');
     expect(url).not.toContain('dev-fss');
@@ -73,15 +77,16 @@ describe('buildNavigationURL', () => {
   });
 
   it('encodes special characters in param values', () => {
-    const url = buildNavigationURL('services', { environment: 'prod gcp' });
-    expect(url).toContain('environment=prod+gcp');
+    // Uses `namespace` because it is a preserved param; `environment` no longer is.
+    const url = buildNavigationURL('services', { namespace: 'prod gcp' });
+    expect(url).toContain('namespace=prod+gcp');
     expect(url.match(/\?/g)?.length).toBe(1);
   });
 
-  it('sanitizes corrupted environment values from old double-? bug', () => {
-    // Old bug created URLs like ?environment=prod-fss?sort=rate
-    const url = buildNavigationURL('services', { environment: 'prod-fss?sort=rate', from: '1000' });
-    expect(url).toContain('environment=prod-fss');
+  it('sanitizes corrupted param values from the old double-? bug', () => {
+    // Old bug created URLs like ?namespace=prod-fss?sort=rate
+    const url = buildNavigationURL('services', { namespace: 'prod-fss?sort=rate', from: '1000' });
+    expect(url).toContain('namespace=prod-fss');
     expect(url).not.toContain('sort=rate');
     expect(url.match(/\?/g)?.length).toBe(1);
   });
