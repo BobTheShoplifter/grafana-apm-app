@@ -1,6 +1,13 @@
 import { of } from 'rxjs';
 import { gzipSync, strToU8 } from 'fflate';
-import { fetchReplay, probeReplay, decodeReplayChunk, decodeReplayEvent, ReplayEventWithTime } from './fetchReplay';
+import {
+  fetchReplay,
+  probeReplay,
+  decodeReplayChunk,
+  decodeReplayEvent,
+  listReplaySessions,
+  ReplayEventWithTime,
+} from './fetchReplay';
 
 const mockFetch = jest.fn();
 
@@ -182,6 +189,62 @@ describe('fetchReplay', () => {
   it('rejects unknown chunk encodings instead of rendering garbage', async () => {
     mockFetch.mockReturnValue(lokiStreams([chunkLine(0, 'recording', [ev(1, 4), ev(1, 2)], 'zstd+b64')]));
     await expect(fetchReplay(baseOpts)).rejects.toThrow(/Unsupported replay chunk encoding "zstd\+b64"/);
+  });
+});
+
+describe('listReplaySessions', () => {
+  /** A Loki matrix series: one session, one value per bucket. */
+  const series = (sessionId: string, points: Array<[number, string]>) => ({
+    metric: { session_id: sessionId },
+    values: points,
+  });
+
+  it('summarises sessions and orders them most recently active first', async () => {
+    mockFetch.mockReturnValue(
+      of({
+        data: {
+          data: {
+            result: [
+              series('older', [[1751500000, '4'], [1751500600, '0']]),
+              series('newer', [[1751500000, '1'], [1751503000, '9']]),
+            ],
+          },
+        },
+      })
+    );
+
+    const sessions = await listReplaySessions(baseOpts);
+
+    expect(sessions.map((s) => s.sessionId)).toEqual(['newer', 'older']);
+    // Counts are summed across buckets; last-seen is the last bucket that carried anything,
+    // so a trailing zero does not make a session look more recent than it is.
+    expect(sessions[0]).toEqual({ sessionId: 'newer', events: 10, lastSeenMs: 1751503000000 });
+    expect(sessions[1]).toEqual({ sessionId: 'older', events: 4, lastSeenMs: 1751500000000 });
+  });
+
+  it('matches both replay wire formats and requires a session id', async () => {
+    mockFetch.mockReturnValue(of({ data: { data: { result: [] } } }));
+
+    await listReplaySessions(baseOpts);
+
+    const query = mockFetch.mock.calls[0][0].params.query as string;
+    expect(query).toContain('faro' + '\\.session_recording' + '\\.chunk');
+    expect(query).toContain('faro' + '\\.session_recording' + '\\.event');
+    // A line with no session_id cannot be opened, so it must not become a row.
+    expect(query).toContain('session_id!=""');
+  });
+
+  it('drops sessions whose buckets are all empty', async () => {
+    mockFetch.mockReturnValue(of({ data: { data: { result: [series('quiet', [[1751500000, '0']])] } } }));
+
+    await expect(listReplaySessions(baseOpts)).resolves.toEqual([]);
+  });
+
+  it('caps the list', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => series(`s${i}`, [[1751500000 + i, '1']]));
+    mockFetch.mockReturnValue(of({ data: { data: { result: many } } }));
+
+    await expect(listReplaySessions({ ...baseOpts, limit: 5 })).resolves.toHaveLength(5);
   });
 });
 

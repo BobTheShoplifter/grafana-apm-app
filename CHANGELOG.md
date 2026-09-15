@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.24.2
+
+### Features
+
+* the Profiling tab asks the datasource which profile types the SERVICE has, instead of
+  offering a hardcoded Go-flavoured list. Node pushes `wall` where Go pushes `process_cpu`,
+  and spells its memory type differently, so every entry in that list missed and the tab
+  rendered empty for every non-Go service - including on its default selection.
+* a session-replay list on the Frontend tab. Replay was reachable only from an exception
+  drawer, which leaves every session recorded by a continuously-recording SDK with no way
+  to be opened. Rows reuse the existing player and fetch path.
+
 ## 0.24.1
 
 ### Features

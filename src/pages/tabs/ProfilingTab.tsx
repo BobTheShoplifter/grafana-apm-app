@@ -1,4 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { getBackendSrv } from '@grafana/runtime';
+import { lastValueFrom } from 'rxjs';
 import { useStyles2, Combobox } from '@grafana/ui';
 import { GrafanaTheme2 } from '@grafana/data';
 import { css } from '@emotion/css';
@@ -25,13 +27,23 @@ interface ProfilingTabProps {
   serviceNameLabel?: string;
 }
 
-// Profile types offered by the selector. `value` is Pyroscope's fully-qualified
-// profileTypeId in `name:sampleType:sampleUnit:periodType:periodUnit` form —
-// the exact shape the grafana-pyroscope-datasource query model expects
-// (@grafana/schema GrafanaPyroscopeDataQuery.profileTypeId). CPU plus the two
-// memory profiles cover the standard flame-graph views; goroutines is a common
-// Go extra.
-const PROFILE_TYPES: Array<{ label: string; value: string }> = [
+// LAST-RESORT fallback only. `value` is Pyroscope's fully-qualified profileTypeId in
+// `name:sampleType:sampleUnit:periodType:periodUnit` form - the exact shape the
+// grafana-pyroscope-datasource query model expects.
+//
+// These are the GO spellings, and a hardcoded list is why this tab rendered empty for every
+// service that is not Go. Node's Pyroscope SDK pushes `wall`, not `process_cpu`, and spells
+// its memory type differently too. Measured on one Node service:
+//     asked for   process_cpu:cpu:nanoseconds:cpu:nanoseconds
+//     exists      wall:cpu:nanoseconds:wall:nanoseconds
+//     asked for   memory:inuse_space:bytes:space:bytes
+//     exists      memory:inuse_space:bytes:inuse_space:bytes
+// Every entry missed, and since the first is also the default selection, the tab opened on a
+// profile type the service had never emitted.
+//
+// The real list is now asked FOR THE SERVICE at mount, from the datasource's own labelValues
+// resource. This array survives only for the case where that call fails.
+const FALLBACK_PROFILE_TYPES: Array<{ label: string; value: string }> = [
   { label: 'CPU', value: 'process_cpu:cpu:nanoseconds:cpu:nanoseconds' },
   { label: 'Memory — in-use space', value: 'memory:inuse_space:bytes:space:bytes' },
   { label: 'Memory — allocated space', value: 'memory:alloc_space:bytes:space:bytes' },
@@ -53,13 +65,86 @@ const PYROSCOPE_DS_TYPE = 'grafana-pyroscope-datasource';
  * graph (the datasource's `spanSelector` query field). Not built here because
  * production runs neither datasource in tandem yet.
  */
+/**
+ * Human label for a profileTypeId: "wall:cpu:nanoseconds:wall:nanoseconds" -> "wall - cpu".
+ * The first two segments are the profile name and the sample type, which is what distinguishes
+ * one entry from another in the picker; the period half is noise to a reader.
+ */
+function profileTypeLabel(id: string): string {
+  const [name, sampleType] = id.split(':');
+  return sampleType ? `${name} - ${sampleType}` : id;
+}
+
+/**
+ * Pick the entry to open on. CPU-ish profiles answer "what is this service doing" and are what
+ * anyone opening a profiling tab is looking for, whatever the runtime happens to call them -
+ * `process_cpu` on Go, `wall` on Node. Anything else falls back to the first available, which
+ * is still a profile the service HAS, rather than one it has never emitted.
+ */
+function preferredProfileType(ids: string[]): string {
+  return ids.find((id) => /^(process_cpu|cpu|wall):/.test(id)) ?? ids[0];
+}
+
 export function ProfilingTab({ service, pyroscopeUid, serviceNameLabel = 'service_name' }: ProfilingTabProps) {
   const styles = useStyles2(getStyles);
-  const [profileType, setProfileType] = useState<string>(PROFILE_TYPES[0].value);
+  const [profileTypes, setProfileTypes] = useState(FALLBACK_PROFILE_TYPES);
+  const [profileType, setProfileType] = useState<string>(FALLBACK_PROFILE_TYPES[0].value);
   // Resolved timestamps drive the scene window AND bust the memo on a global
   // time-picker refresh (from/to strings stay relative but fromMs/toMs
   // re-resolve), so the scene rebuilds and re-queries the fresh window.
   const { fromMs, toMs } = useTimeRange();
+
+  // Ask the datasource which profile types THIS service has, rather than assuming. The
+  // pyroscope datasource proxies Pyroscope's label API, and `__profile_type__` is the label
+  // that carries the fully-qualified ids, so one call scoped by the service selector returns
+  // exactly the set that can produce a flame graph.
+  //
+  // Deliberately NOT the /resources/profileTypes route: that returns every type in the tenant,
+  // including ones emitted by other services, which would repopulate the picker with entries
+  // that render empty - the bug this replaces, one level further in.
+  useEffect(() => {
+    if (!pyroscopeUid) {
+      return;
+    }
+    let cancelled = false;
+    const selector = `{${serviceNameLabel}="${sanitizeLabelValue(service)}"}`;
+
+    lastValueFrom(
+      getBackendSrv().fetch<string[]>({
+        url: `/api/datasources/uid/${encodeURIComponent(pyroscopeUid)}/resources/labelValues`,
+        params: {
+          label: '__profile_type__',
+          query: selector,
+          // Pyroscope's label API takes epoch MILLISECONDS, unlike the Loki calls elsewhere
+          // in this plugin which take nanoseconds. A mismatch here returns an empty list
+          // rather than an error, which would look exactly like "service has no profiles".
+          start: String(Math.floor(fromMs)),
+          end: String(Math.floor(toMs)),
+        },
+        method: 'GET',
+      })
+    )
+      .then((res) => {
+        if (cancelled) {
+          return;
+        }
+        const ids = (res.data ?? []).filter((id) => typeof id === 'string' && id.includes(':'));
+        if (ids.length === 0) {
+          return; // leave the fallback in place; the panels will show their own empty state
+        }
+        setProfileTypes(ids.map((id) => ({ label: profileTypeLabel(id), value: id })));
+        // Only move the selection when the current one is not among them, so a deliberate
+        // pick survives a time-range change that re-runs this.
+        setProfileType((current) => (ids.includes(current) ? current : preferredProfileType(ids)));
+      })
+      .catch(() => {
+        // Keep the fallback list: a discovery failure should not empty the picker.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [service, serviceNameLabel, pyroscopeUid, fromMs, toMs]);
 
   const scene = useMemo(() => {
     const timeRange = new SceneTimeRange({
@@ -129,9 +214,9 @@ export function ProfilingTab({ service, pyroscopeUid, serviceNameLabel = 'servic
       <div className={styles.controls}>
         <label className={styles.label}>Profile type:</label>
         <Combobox
-          options={PROFILE_TYPES}
+          options={profileTypes}
           value={profileType}
-          onChange={(v) => setProfileType(v?.value ?? PROFILE_TYPES[0].value)}
+          onChange={(v) => setProfileType(v?.value ?? FALLBACK_PROFILE_TYPES[0].value)}
           width={32}
         />
       </div>

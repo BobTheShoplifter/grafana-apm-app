@@ -221,6 +221,86 @@ export async function fetchReplay(opts: ReplayQueryOptions): Promise<ReplayData 
   };
 }
 
+/** One recorded session, for the list that lets you reach a replay without an exception. */
+export interface ReplaySessionSummary {
+  sessionId: string;
+  /** Replay lines seen in the window - a rough proxy for how much there is to watch. */
+  events: number;
+  /** Epoch ms of the last bucket that carried anything, i.e. when the session was last active. */
+  lastSeenMs: number;
+}
+
+/**
+ * List the sessions that have replay data for a service in the window, most recent first.
+ *
+ * WHY THIS EXISTS. Replay was reachable from exactly one place: an exception drawer. That is
+ * the right entry point when you are investigating an error, and the only one when a session
+ * is recorded solely because an error happened. But a continuously-recording SDK produces
+ * sessions for people who hit no error at all, and those were unreachable - the data sat in
+ * Loki with nothing in the UI pointing at it.
+ *
+ * A metric query rather than a log query on purpose: the payloads are large and none of them
+ * are needed to draw a list. Counting by session_id moves the aggregation into Loki and keeps
+ * the response to one number per session.
+ */
+export async function listReplaySessions(
+  opts: Omit<ReplayQueryOptions, 'sessionId'> & { limit?: number }
+): Promise<ReplaySessionSummary[]> {
+  const fl = otel.faroLoki;
+  const service = sanitizeLabelValue(opts.service);
+  const envLabel = opts.environmentLabel || otel.labels.deploymentEnv;
+  const envStream = opts.environment ? `, ${envLabel}="${sanitizeLabelValue(opts.environment)}"` : '';
+  const eventNames = [fl.replayChunkEvent, fl.replayEventEvent]
+    .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
+  const selector = `{${fl.serviceName}="${service}", ${fl.kind}=~"${fl.kindEvent}|${fl.kindReplay}"${envStream}}`;
+
+  // 24 buckets across the window, floored at a minute: enough resolution to say WHEN a session
+  // was last active without asking Loki for a point per scrape.
+  const rangeSec = Math.max(60, Math.ceil((opts.toMs - opts.fromMs) / 1000));
+  const stepSec = Math.max(60, Math.floor(rangeSec / 24));
+  const query =
+    `sum by (${fl.sessionId}) (count_over_time(${selector} |~ \`${eventNames}\` | logfmt ` +
+    `| ${fl.sessionId}!="" [${stepSec}s]))`;
+
+  const res = await lastValueFrom(
+    getBackendSrv().fetch<any>({
+      url: `/api/datasources/proxy/uid/${encodeURIComponent(opts.logsUid)}/loki/api/v1/query_range`,
+      params: {
+        query,
+        start: msToNs(opts.fromMs),
+        end: msToNs(opts.toMs),
+        step: `${stepSec}s`,
+      },
+      method: 'GET',
+    })
+  );
+
+  const sessions: ReplaySessionSummary[] = [];
+  for (const series of res.data?.data?.result ?? []) {
+    const sessionId = series.metric?.[fl.sessionId];
+    if (!sessionId) {
+      continue;
+    }
+    let events = 0;
+    let lastSeenMs = 0;
+    for (const [tsSec, value] of series.values ?? []) {
+      const n = Number(value);
+      if (!(n > 0)) {
+        continue;
+      }
+      events += n;
+      lastSeenMs = Math.max(lastSeenMs, Number(tsSec) * 1000);
+    }
+    if (events > 0) {
+      sessions.push({ sessionId, events, lastSeenMs });
+    }
+  }
+
+  sessions.sort((a, b) => b.lastSeenMs - a.lastSeenMs);
+  return sessions.slice(0, opts.limit ?? 25);
+}
+
 /**
  * Cheap existence probe: a count-only Loki metric query (no chunk payloads
  * cross the wire) grouped by mode, so the drawer knows whether to offer

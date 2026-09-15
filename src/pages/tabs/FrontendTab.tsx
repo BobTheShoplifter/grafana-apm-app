@@ -23,6 +23,7 @@ import { apmDocs, APM_SDK_REPO_URL } from '../../utils/docsLinks';
 import { otel } from '../../otelconfig';
 import { buildDeployAnnotationsLayer } from '../buildServiceScene';
 import { ExceptionDrawer } from './frontend/components/ExceptionDrawer';
+import { ReplaySessions } from './frontend/replay/ReplaySessions';
 import { useExceptionDrawerState } from './frontend/useExceptionDrawer';
 
 import {
@@ -197,6 +198,23 @@ function FrontendPanels({
     const attributionRow = buildAttributionSection(ctx);
     const trafficRow = buildTrafficSection(ctx);
 
+    // Session replays. Rendered only when a Loki datasource is configured, because the
+    // recordings live there and the list query has nowhere to go without one.
+    const replayRow = ds.logsUid
+      ? new SceneFlexItem({
+          body: new SceneReactObject({
+            reactNode: (
+              <ReplaySessions
+                logsUid={ds.logsUid}
+                service={service}
+                environment={environment || undefined}
+                environmentLabel={labelOverrides?.deploymentEnvLabel}
+              />
+            ),
+          }),
+        })
+      : null;
+
     // Browser filter variable
     const browserVar = new CustomVariable({
       name: 'browser',
@@ -235,6 +253,7 @@ function FrontendPanels({
           // triage moved to the Issues tab) so the trends below aren't pushed
           // down by a tall table.
           errorsRow,
+          ...(replayRow ? [replayRow] : []),
           trendsRow,
           // Web-vitals attribution: which LCP element / interaction / layout
           // shift is responsible — right after the vitals trends they explain.
