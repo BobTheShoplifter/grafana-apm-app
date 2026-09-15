@@ -37,7 +37,12 @@ jobs:
         with:
           policy_token: ${{ secrets.GRAFANA_ACCESS_POLICY_TOKEN }}
           sign_root_urls: ${{ secrets.GRAFANA_PLUGIN_ROOT_URLS }}
-          go-version: '1.26.4'
+          # MUST match the `go` directive in go.mod (1.26.5). Pinned one patch BEHIND it, the
+          # build failed before it compiled anything: mage parses the magefile with `go list`,
+          # a toolchain older than the module requires refuses to resolve the import, and the
+          # only symptom is "Error parsing magefiles ... exit status 1" with no mention of Go
+          # versions at all. Bump both together or neither.
+          go-version: '1.26.5'
           attestation: true
 
       - name: Extract changelog
