@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.24.6
+
+### Features
+
+* the player says so when a session will play back unstyled. A `<link rel="stylesheet">` left
+  in the snapshot is a cross-origin request at playback time, and against an access-proxied
+  app it is answered with a redirect to a login page - reported as a CORS failure, leaving a
+  replay of unstyled HTML and no explanation. The fix belongs in the recorder
+  (`inlineStylesheet`), which cannot cover genuinely third-party CSS, so the notice stays
+  useful rather than being a stopgap.
+
 ## 0.24.5
 
 ### Bug Fixes

@@ -42,6 +42,52 @@ function recordedViewport(events: ReplayPlayerProps['events']): { width: number;
   return { width: meta?.data?.width || 1280, height: meta?.data?.height || 720 };
 }
 
+/**
+ * Stylesheet hrefs in the snapshot that point at another origin.
+ *
+ * A replay is rendered from OUR origin, so a `<link rel="stylesheet">` left in the snapshot is
+ * a cross-origin request at playback time - and one that usually cannot succeed. The recorded
+ * app sits behind an access proxy, so an unauthenticated fetch is answered with a redirect to a
+ * login page, which the browser reports as a CORS failure. The replay then renders as unstyled
+ * HTML with a console full of errors and nothing explaining why.
+ *
+ * The recorder is where this is actually fixed: `inlineStylesheet` puts the CSS text into the
+ * snapshot, so playback fetches nothing. rrweb can only do that for stylesheets it can READ
+ * through the CSSOM, so a genuinely third-party stylesheet stays a link forever and this notice
+ * is the honest answer rather than a bug.
+ */
+function unfetchableStylesheets(events: ReplayPlayerProps['events']): string[] {
+  const here = typeof window === 'undefined' ? '' : window.location.origin;
+  const found = new Set<string>();
+
+  const visit = (node: any) => {
+    if (!node || typeof node !== 'object') {
+      return;
+    }
+    const attrs = node.attributes;
+    if (attrs && typeof attrs.href === 'string' && String(attrs.rel ?? '').includes('stylesheet')) {
+      try {
+        const url = new URL(attrs.href, here || undefined);
+        if (url.origin !== here) {
+          found.add(url.origin);
+        }
+      } catch {
+        // A relative href with no base to resolve against is not worth reporting.
+      }
+    }
+    for (const child of node.childNodes ?? []) {
+      visit(child);
+    }
+  };
+
+  for (const event of events) {
+    if (event.type === 2) {
+      visit((event.data as { node?: unknown } | undefined)?.node);
+    }
+  }
+  return [...found];
+}
+
 function formatOffset(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
@@ -64,6 +110,7 @@ export default function ReplayPlayer({ events, mode, seekToMs }: ReplayPlayerPro
   const [speed, setSpeed] = useState(1);
 
   const viewport = useMemo(() => recordedViewport(events), [events]);
+  const externalStyles = useMemo(() => unfetchableStylesheets(events), [events]);
   const durationMs = useMemo(() => {
     if (events.length < 2) {
       return 0;
@@ -210,6 +257,15 @@ export default function ReplayPlayer({ events, mode, seekToMs }: ReplayPlayerPro
           <Icon name="shield" size="sm" /> Recorded with all text and inputs masked at capture time.
         </span>
       </div>
+
+      {externalStyles.length > 0 && (
+        <Alert severity="info" title="This session will play back unstyled">
+          Its stylesheets were recorded as links to {externalStyles.join(', ')} rather than
+          inlined, so the player cannot load them and the page renders without CSS. Sessions
+          recorded after stylesheet inlining is enabled in the app play back styled; this one
+          predates it.
+        </Alert>
+      )}
 
       <div ref={hostRef} className={styles.host} data-testid="replay-player-container">
         <div ref={stageRef} className={styles.stage} style={{ width: viewport.width, height: viewport.height }} />

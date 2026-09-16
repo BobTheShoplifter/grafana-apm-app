@@ -113,6 +113,27 @@ describe('ReplayPlayer', () => {
     expect(mockCtor).not.toHaveBeenCalled();
   });
 
+  it('warns when a stylesheet was left as a cross-origin link instead of inlined', () => {
+    // jsdom serves the test document from localhost, so any other origin is "external".
+    const snapshot = {
+      ...ev(1000, 2),
+      data: {
+        node: {
+          childNodes: [{ attributes: { rel: 'stylesheet', href: 'https://elsewhere.example/app.css' } }],
+        },
+      },
+    };
+    render(<ReplayPlayer events={[meta(1000), snapshot, ev(9000)]} mode="recording" />);
+
+    expect(screen.getByText('This session will play back unstyled')).toBeInTheDocument();
+    expect(screen.getByText(/https:\/\/elsewhere\.example/)).toBeInTheDocument();
+  });
+
+  it('says nothing when the stylesheets were inlined', () => {
+    render(<ReplayPlayer events={recordingEvents} mode="recording" />);
+    expect(screen.queryByText('This session will play back unstyled')).not.toBeInTheDocument();
+  });
+
   it('tears the player down on unmount', () => {
     const { unmount } = render(<ReplayPlayer events={recordingEvents} mode="recording" />);
     unmount();
