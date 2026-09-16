@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.25.0](https://github.com/BobTheShoplifter/grafana-apm-app/compare/nais-apm-app-v0.24.0...nais-apm-app-v0.25.0) (2026-09-16)
+
+
+### Features
+
+* **alerts:** new issues → Slack via a copy-pasteable PrometheusRule ([#177](https://github.com/BobTheShoplifter/grafana-apm-app/issues/177)) ([257c88c](https://github.com/BobTheShoplifter/grafana-apm-app/commit/257c88cfaa7e34b8d447a0e99d9b1ed134544e02))
+* reach replays without an exception, and profile what the service emits ([4b2fd0b](https://github.com/BobTheShoplifter/grafana-apm-app/commit/4b2fd0bd3cc340b0c2ba0a22121fa44c5fde99ef))
+* **replay:** play sessions recorded by the upstream Grafana Faro SDK ([2233f5a](https://github.com/BobTheShoplifter/grafana-apm-app/commit/2233f5ab1b6e0fa6528a3611340a80425ed57e3e))
+* **replay:** say when a session will play back unstyled instead of just doing it ([1a625af](https://github.com/BobTheShoplifter/grafana-apm-app/commit/1a625af863937a435c9f695c8d1e453422515a9f))
+* **scorecard:** make every failing readiness check one click to fix ([#176](https://github.com/BobTheShoplifter/grafana-apm-app/issues/176)) ([7abe3ad](https://github.com/BobTheShoplifter/grafana-apm-app/commit/7abe3ad4db8cd0540f2f8cf97b0c09b6e0cad11d))
+
+
+### Bug Fixes
+
+* **build:** drop tsconfig baseUrl ahead of the TypeScript 7 bump ([#179](https://github.com/BobTheShoplifter/grafana-apm-app/issues/179)) ([a6399fc](https://github.com/BobTheShoplifter/grafana-apm-app/commit/a6399fc045519cb992cd6ceb751c01c5c8ebffc5))
+* **deps:** pin transitive dependencies flagged by Dependabot ([#178](https://github.com/BobTheShoplifter/grafana-apm-app/issues/178)) ([8cfbc1f](https://github.com/BobTheShoplifter/grafana-apm-app/commit/8cfbc1f34881815ca30423c831160215c58639aa))
+* **replay:** drive rrweb directly, because the player wrapper never builds one ([ec68355](https://github.com/BobTheShoplifter/grafana-apm-app/commit/ec683553b385eff6d11aa04e827921e8654c64dc))
+* **replay:** render the player where it can measure itself, and stop dropping mutations ([4a2129d](https://github.com/BobTheShoplifter/grafana-apm-app/commit/4a2129d4074f10d13160ee75a816123f2c53a93a))
+* separate Loki's service label from the span-metrics one, and three follow-ons ([91ee59e](https://github.com/BobTheShoplifter/grafana-apm-app/commit/91ee59e405dbda0bcf0d4f51354e78a40c9116cb))
+
 ## 0.24.6
 
 ### Features
