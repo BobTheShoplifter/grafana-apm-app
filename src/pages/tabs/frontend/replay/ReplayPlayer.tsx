@@ -242,13 +242,10 @@ export default function ReplayPlayer({ events, mode, seekToMs }: ReplayPlayerPro
     [playing]
   );
 
-  const changeSpeed = useCallback(
-    (value: number) => {
-      setSpeed(value);
-      replayerRef.current?.setConfig?.({ speed: value });
-    },
-    []
-  );
+  const changeSpeed = useCallback((value: number) => {
+    setSpeed(value);
+    replayerRef.current?.setConfig?.({ speed: value });
+  }, []);
 
   if (!hasEnoughEvents) {
     return (
@@ -273,10 +270,9 @@ export default function ReplayPlayer({ events, mode, seekToMs }: ReplayPlayerPro
 
       {externalStyles.length > 0 && (
         <Alert severity="info" title="This session will play back unstyled">
-          Its stylesheets were recorded as links to {externalStyles.join(', ')} rather than
-          inlined, so the player cannot load them and the page renders without CSS. Sessions
-          recorded after stylesheet inlining is enabled in the app play back styled; this one
-          predates it.
+          Its stylesheets were recorded as links to {externalStyles.join(', ')} rather than inlined, so the player
+          cannot load them and the page renders without CSS. Sessions recorded after stylesheet inlining is enabled in
+          the app play back styled; this one predates it.
         </Alert>
       )}
 

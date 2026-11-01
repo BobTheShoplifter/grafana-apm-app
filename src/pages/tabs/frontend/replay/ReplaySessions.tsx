@@ -89,9 +89,8 @@ export function ReplaySessions({ logsUid, service, environment, environmentLabel
     // rows appear rather than implying something is broken.
     return (
       <div className={styles.empty}>
-        No recorded sessions in this time range. Replay is opt-in per app: the browser SDK needs
-        its replay instrumentation enabled, and only sessions from after that was deployed are
-        recorded.
+        No recorded sessions in this time range. Replay is opt-in per app: the browser SDK needs its replay
+        instrumentation enabled, and only sessions from after that was deployed are recorded.
       </div>
     );
   }

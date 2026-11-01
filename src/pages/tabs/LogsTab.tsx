@@ -50,7 +50,6 @@ const FARO_KIND_OPTIONS: Array<{ label: string; value: string }> = [
   { label: 'Events', value: 'event' },
 ];
 
-
 /** Stream labels that name a pod, in the order they are tried. */
 const POD_LABELS = ['k8s_pod_name', 'pod'];
 export function LogsTab({

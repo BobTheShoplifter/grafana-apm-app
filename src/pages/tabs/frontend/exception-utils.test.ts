@@ -57,7 +57,8 @@ describe('parseLogfmt', () => {
   it('keeps a quoted JSON value whole instead of truncating at its first inner quote', () => {
     // How Alloy writes a session-replay event: JSON inside a quoted logfmt value. Stopping at
     // the first escaped quote would yield `{` and every replay would decode to nothing.
-    const line = 'kind=event event_name=faro.session_recording.event event_data_event="{\\"type\\":4,\\"timestamp\\":10}" session_id=sess-1';
+    const line =
+      'kind=event event_name=faro.session_recording.event event_data_event="{\\"type\\":4,\\"timestamp\\":10}" session_id=sess-1';
     const p = parseLogfmt(line);
     expect(p.event_data_event).toBe('{"type":4,"timestamp":10}');
     // and the fields after it are still parsed, rather than swallowed by a runaway value

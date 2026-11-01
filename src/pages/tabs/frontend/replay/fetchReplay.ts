@@ -88,7 +88,9 @@ function buildReplayPipeline(opts: ReplayQueryOptions): string {
   const selector = `{${fl.serviceName}="${service}", ${fl.kind}=~"${fl.kindEvent}|${fl.kindReplay}"${envStream}}`;
   // A regex line filter rather than two `|=` terms: `|=` clauses are ANDed, so requiring both
   // event names would match nothing at all. Dots are escaped because this is a regex now.
-  const eventNames = [fl.replayChunkEvent, fl.replayEventEvent].map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+  const eventNames = [fl.replayChunkEvent, fl.replayEventEvent]
+    .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|');
   return `${selector} |~ \`${eventNames}\` |= \`${sessionId}\` | logfmt | ${fl.sessionId}="${sessionId}"`;
 }
 

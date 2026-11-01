@@ -156,9 +156,7 @@ describe('fetchReplay', () => {
   });
 
   it('dedupes retried single-event lines without dropping same-millisecond events', async () => {
-    mockFetch.mockReturnValue(
-      lokiStreams([eventLine(ev(10, 3)), eventLine(ev(10, 3)), eventLine(ev(10, 2))])
-    );
+    mockFetch.mockReturnValue(lokiStreams([eventLine(ev(10, 3)), eventLine(ev(10, 3)), eventLine(ev(10, 2))]));
 
     const data = await fetchReplay(baseOpts);
 
@@ -168,7 +166,10 @@ describe('fetchReplay', () => {
 
   it('skips a malformed single-event line instead of failing the whole session', async () => {
     mockFetch.mockReturnValue(
-      lokiStreams(['kind=event event_name=faro.session_recording.event session_id=sess-1 event_data_event="{oops"', eventLine(ev(10))])
+      lokiStreams([
+        'kind=event event_name=faro.session_recording.event session_id=sess-1 event_data_event="{oops"',
+        eventLine(ev(10)),
+      ])
     );
 
     const data = await fetchReplay(baseOpts);
@@ -205,8 +206,14 @@ describe('listReplaySessions', () => {
         data: {
           data: {
             result: [
-              series('older', [[1751500000, '4'], [1751500600, '0']]),
-              series('newer', [[1751500000, '1'], [1751503000, '9']]),
+              series('older', [
+                [1751500000, '4'],
+                [1751500600, '0'],
+              ]),
+              series('newer', [
+                [1751500000, '1'],
+                [1751503000, '9'],
+              ]),
             ],
           },
         },
