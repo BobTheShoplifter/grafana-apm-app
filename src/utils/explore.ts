@@ -196,8 +196,10 @@ export function buildLogsDrilldownUrl(
     from?: string;
     to?: string;
     namespace?: string;
-    /** deployment_environment, for a Loki shared by several environments. */
+    /** The environment, for a Loki shared by several environments. */
     environment?: string;
+    /** The stream label that carries it. Default: otel.labels.deploymentEnv. */
+    environmentLabel?: string;
     serviceNameLabel?: string;
     serviceNamespaceLabel?: string;
   }
@@ -218,7 +220,8 @@ export function buildLogsDrilldownUrl(
     filters.push(`${nsLabel}|=|${escapeDrilldownFilterValue(options.namespace)}`);
   }
   if (options?.environment) {
-    filters.push(`${otel.labels.deploymentEnv}|=|${escapeDrilldownFilterValue(options.environment)}`);
+    const envLabel = options.environmentLabel || otel.labels.deploymentEnv;
+    filters.push(`${envLabel}|=|${escapeDrilldownFilterValue(options.environment)}`);
   }
 
   return urlUtil.renderUrl(

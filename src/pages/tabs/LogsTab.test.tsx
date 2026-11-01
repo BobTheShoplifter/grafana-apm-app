@@ -147,7 +147,7 @@ describe('LogsTab pod filter', () => {
   });
 });
 
-describe('LogsTab drilldown link', () => {
+describe('LogsTab environment scope', () => {
   beforeEach(() => {
     capturedRunners.length = 0;
     global.fetch = jest
@@ -155,8 +155,8 @@ describe('LogsTab drilldown link', () => {
       .mockResolvedValue({ json: () => Promise.resolve({ data: [] }) }) as unknown as typeof fetch;
   });
 
-  it("opens Logs Drilldown on the tab's own scope: service and environment, no namespace", () => {
-    const { getByText } = render(
+  const renderScoped = (deploymentEnvLabel?: string) =>
+    render(
       <MemoryRouter>
         <LogsTab
           service="cdn"
@@ -165,15 +165,40 @@ describe('LogsTab drilldown link', () => {
           from="now-1h"
           to="now"
           clusterFilter="stagingk8s"
+          deploymentEnvLabel={deploymentEnvLabel}
         />
       </MemoryRouter>
     );
-    const href = getByText('Open in Logs Drilldown').closest('a')?.getAttribute('href') ?? '';
-    const filters = new URLSearchParams(href.split('?')[1]).getAll('var-filters');
 
-    // A namespace filter matched nothing on a Loki whose streams carry no service_namespace.
+  const drilldownFilters = (link: HTMLElement) =>
+    new URLSearchParams((link.closest('a')?.getAttribute('href') ?? '').split('?')[1]).getAll('var-filters');
+
+  it('scopes the queries, the pod list and the drilldown link with the configured environment label', async () => {
+    const { getByText } = renderScoped('deployment_environment');
+
+    // The built-in k8s_cluster_name matched nothing on a Loki that labels streams by
+    // deployment_environment, and the tab showed no logs.
+    expect(queryRunner('A').queries[0].expr).toContain('service_name="cdn", deployment_environment="stagingk8s"');
+    await waitFor(() =>
+      expect(decodeURIComponent((global.fetch as jest.Mock).mock.calls[0][0])).toContain(
+        'deployment_environment="stagingk8s"'
+      )
+    );
+    // The tab's own scope, without the namespace: a service_namespace filter matched nothing
+    // on a Loki whose streams do not carry it.
+    expect(drilldownFilters(getByText('Open in Logs Drilldown'))).toEqual([
+      'service_name|=|cdn',
+      'deployment_environment|=|stagingk8s',
+    ]);
+  });
+
+  it('falls back to the built-in environment label when none is configured', () => {
+    const { getByText } = renderScoped();
     const env = otel.labels.deploymentEnv;
-    expect(filters).toEqual(['service_name|=|cdn', `${env}|=|stagingk8s`]);
     expect(queryRunner('A').queries[0].expr).toContain(`service_name="cdn", ${env}="stagingk8s"`);
+    expect(drilldownFilters(getByText('Open in Logs Drilldown'))).toEqual([
+      'service_name|=|cdn',
+      `${env}|=|stagingk8s`,
+    ]);
   });
 });

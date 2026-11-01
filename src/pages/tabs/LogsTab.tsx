@@ -28,6 +28,8 @@ interface LogsTabProps {
   serviceNameLabel?: string;
   /** Cluster/environment filter to inject into stream selectors (for centralized Loki). */
   clusterFilter?: string;
+  /** The stream label clusterFilter matches: the configured environment label, as the Frontend tab uses. */
+  deploymentEnvLabel?: string;
 }
 
 // Severity options based on detected_level stream label values observed in production.
@@ -62,7 +64,11 @@ export function LogsTab({
   // streams, and the two names come from different pipelines.
   serviceNameLabel = otel.faroLoki.serviceName,
   clusterFilter,
+  deploymentEnvLabel,
 }: LogsTabProps) {
+  // The configured label, not the built-in default: on a Loki that does not carry
+  // k8s_cluster_name, the default emptied every query in this tab.
+  const envLabel = deploymentEnvLabel || otel.labels.deploymentEnv;
   const [severityFilter, setSeverityFilter] = useUrlCsv('logSeverity');
   const [logSearch, setLogSearch] = useUrlString('logSearch');
   const [podFilter, setPodFilter] = useUrlString('logPod');
@@ -82,7 +88,7 @@ export function LogsTab({
   // Fetch available pod names for this service, from the first pod label its streams carry.
   useEffect(() => {
     const controller = new AbortController();
-    const clusterMatcher = clusterFilter ? `, ${otel.labels.deploymentEnv}="${sanitizeLabelValue(clusterFilter)}"` : '';
+    const clusterMatcher = clusterFilter ? `, ${envLabel}="${sanitizeLabelValue(clusterFilter)}"` : '';
     const selector = encodeURIComponent(`{${serviceNameLabel}="${sanitizeLabelValue(service)}"${clusterMatcher}}`);
     const podsFor = (label: string): Promise<string[]> =>
       fetch(
@@ -105,7 +111,7 @@ export function LogsTab({
       /* ignore */
     });
     return () => controller.abort();
-  }, [service, logsUid, serviceNameLabel, clusterFilter]);
+  }, [service, logsUid, serviceNameLabel, clusterFilter, envLabel]);
 
   const scene = useMemo(() => {
     // Resolve against the shared URL range (fromMs/toMs) rather than the raw
@@ -118,7 +124,7 @@ export function LogsTab({
     const svcLabel = `${serviceNameLabel}="${sanitizeLabelValue(service)}"`;
 
     // Centralized Loki: inject cluster label to scope logs to the selected environment.
-    const clusterStream = clusterFilter ? `, ${otel.labels.deploymentEnv}="${sanitizeLabelValue(clusterFilter)}"` : '';
+    const clusterStream = clusterFilter ? `, ${envLabel}="${sanitizeLabelValue(clusterFilter)}"` : '';
     // Faro browser telemetry filtering via the `kind` stream label:
     // - Off: kind="" matches only backend app logs (no kind label)
     // - On + no filter: show all (no kind constraint)
@@ -223,6 +229,7 @@ export function LogsTab({
     toMs,
     serviceNameLabel,
     clusterFilter,
+    envLabel,
   ]);
 
   return (
@@ -281,6 +288,7 @@ export function LogsTab({
           // `service_namespace` filter on a Loki that lacks the label opened an empty drilldown.
           href={buildLogsDrilldownUrl(logsUid, service, {
             environment: clusterFilter,
+            environmentLabel: envLabel,
             from,
             to,
             serviceNameLabel,

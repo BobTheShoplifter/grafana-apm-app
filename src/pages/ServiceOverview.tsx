@@ -548,6 +548,7 @@ function ServiceOverviewInner({ namespace, service }: { namespace: string; servi
                   // log pipeline never writes.
                   serviceNameLabel={labelOverrides.logsServiceNameLabel}
                   clusterFilter={!ds.isLogsEnvSpecific ? envFilter || undefined : undefined}
+                  deploymentEnvLabel={labelOverrides.deploymentEnvLabel}
                 />
               </ErrorBoundary>
             </div>
