@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.11
+
+### Bug Fixes
+
+* "Open in Logs Drilldown" filters on what the Logs tab filters on: the service and, for a
+  Loki shared by several environments, the environment. It used to add a `service_namespace`
+  filter, which matched nothing where log streams do not carry that label.
+
 ## 0.24.10
 
 ### Bug Fixes
