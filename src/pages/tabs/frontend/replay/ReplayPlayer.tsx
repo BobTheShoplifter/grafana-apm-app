@@ -336,6 +336,15 @@ const getStyles = (theme: GrafanaTheme2) => ({
     position: 'absolute',
     top: 0,
     left: 0,
+    // rrweb-player's stylesheet (imported for the cursor and click styles) makes the wrapper
+    // `position: relative; left: 50%; top: 50%`, which its Svelte player cancels with its own
+    // translate(-50%, -50%). This player scales the stage instead, so the wrapper is pinned to
+    // the stage's corner; otherwise every replay is drawn half a frame right and down.
+    '& .replayer-wrapper': {
+      left: 0,
+      top: 0,
+      float: 'none',
+    },
   }),
   controls: css({
     display: 'flex',

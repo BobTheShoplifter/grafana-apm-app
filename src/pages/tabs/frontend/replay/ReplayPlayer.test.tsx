@@ -85,6 +85,24 @@ describe('ReplayPlayer', () => {
     expect(stage.style.height).toBe('1295px');
   });
 
+  it("pins rrweb's wrapper to the stage's corner, against the player stylesheet's 50% offset", () => {
+    // rrweb-player's stylesheet sets `.replayer-wrapper{left:50%;top:50%}` and its Svelte player
+    // cancels that with a translate this player does not use. The override has to match the
+    // wrapper rrweb mounts in the stage and be more specific than that one class. Checked on the
+    // rules themselves: jsdom's cascade follows sheet creation order, not specificity.
+    render(<ReplayPlayer events={recordingEvents} mode="recording" />);
+    const stage = mockCtor.mock.calls[0][1].root as HTMLElement;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'replayer-wrapper';
+    stage.appendChild(wrapper);
+
+    const pins = Array.from(document.styleSheets)
+      .flatMap((sheet) => Array.from(sheet.cssRules) as CSSStyleRule[])
+      .filter((rule) => rule.selectorText?.includes('.replayer-wrapper') && rule.selectorText !== '.replayer-wrapper')
+      .filter((rule) => wrapper.matches(rule.selectorText));
+    expect(pins.some((rule) => parseFloat(rule.style.left) === 0 && parseFloat(rule.style.top) === 0)).toBe(true);
+  });
+
   it('pauses and resumes from the same position', () => {
     render(<ReplayPlayer events={recordingEvents} mode="recording" />);
     const button = screen.getByLabelText('Pause replay');
