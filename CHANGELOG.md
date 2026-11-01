@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.12
+
+### Bug Fixes
+
+* the Logs tab matches the environment on the label set in the app config, as the Frontend
+  tab does. It used the built-in `k8s_cluster_name`, so on a Loki that labels streams by
+  another name the logs, volume, pod list and drilldown link were all empty.
+
 ## 0.24.11
 
 ### Bug Fixes
