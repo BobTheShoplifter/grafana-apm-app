@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.13
+
+### Bug Fixes
+
+* the error budget on the overview uses the label overrides from the app config, as the
+  charts beside it do. With the built-in names it matched no series where span metrics carry
+  other labels, and showed "Not enough data" for every service.
+
 ## 0.24.12
 
 ### Bug Fixes
