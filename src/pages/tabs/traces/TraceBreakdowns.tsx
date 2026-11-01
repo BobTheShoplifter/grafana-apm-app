@@ -26,6 +26,7 @@ const DIMENSION_LABELS: Record<string, string> = {
   name: 'Span name',
   'http.route': 'HTTP route',
   'http.status_code': 'HTTP status',
+  'http.response.status_code': 'HTTP status',
   'db.system': 'DB system',
   'db.operation': 'DB operation',
   'messaging.system': 'Messaging',

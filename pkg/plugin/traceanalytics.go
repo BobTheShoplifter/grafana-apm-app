@@ -35,6 +35,9 @@ var traceDimensions = []traceDimension{
 	{"name", "name", func(l otelconfig.Labels) string { return l.SpanName }},
 	{"http.route", "span.http.route", func(l otelconfig.Labels) string { return l.HTTPRoute }},
 	{"http.status_code", "span.http.status_code", func(l otelconfig.Labels) string { return l.HTTPStatusCode }},
+	// The stable name since semconv 1.23; current OTel SDKs send only this one. Probing
+	// keeps whichever of the two a service actually carries.
+	{"http.response.status_code", "span.http.response.status_code", func(l otelconfig.Labels) string { return l.HTTPStatusCode }},
 	{"db.system", "span.db.system", func(l otelconfig.Labels) string { return l.DBSystem }},
 	{"db.operation", "span.db.operation", func(l otelconfig.Labels) string { return l.DBOperation }},
 	{"messaging.system", "span.messaging.system", func(l otelconfig.Labels) string { return l.MessagingSystem }},
