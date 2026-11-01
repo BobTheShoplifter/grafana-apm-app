@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.24.9
+
+### Bug Fixes
+
+* the replay follows the session's viewport. A session spans page loads and window resizes,
+  and the player sized and scaled the frame to the first page only, so a later narrower page
+  filled part of the frame and left the rest blank, and a wider one was clipped.
+* a quiet app keeps its Frontend tab and its browser-telemetry check. Alloy drops an idle
+  `loki.process` series after `max_idle_duration` (5m by default), and a histogram series born
+  with its only observation shows no `increase()`, so minutes after the last visit to a
+  low-traffic app both said no browser telemetry was found. Both now look for the LCP
+  histogram over the tab's 6h window.
+
 ## 0.24.8
 
 ### Bug Fixes
