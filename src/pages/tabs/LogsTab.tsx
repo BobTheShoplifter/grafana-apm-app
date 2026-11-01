@@ -276,8 +276,11 @@ export function LogsTab({
           size="sm"
           icon="gf-logs"
           className={styles.drilldownLink}
+          // The same scope as this tab's own queries: service and environment. Not the
+          // namespace, which the tab never filters on and which log streams need not carry: a
+          // `service_namespace` filter on a Loki that lacks the label opened an empty drilldown.
           href={buildLogsDrilldownUrl(logsUid, service, {
-            namespace,
+            environment: clusterFilter,
             from,
             to,
             serviceNameLabel,

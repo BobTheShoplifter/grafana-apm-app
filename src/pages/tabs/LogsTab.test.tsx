@@ -2,6 +2,7 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { LogsTab } from './LogsTab';
+import { otel } from '../../otelconfig';
 
 /**
  * LogsTab builds its Scene inline, so @grafana/scenes is mocked to capture the
@@ -143,5 +144,36 @@ describe('LogsTab pod filter', () => {
     renderTab('?logPod=api-1');
     await waitFor(() => expect(lastRunner('A').queries[0].expr).toContain(', pod="api-1"'));
     expect(lastRunner('A').queries[0].expr).not.toContain('k8s_pod_name');
+  });
+});
+
+describe('LogsTab drilldown link', () => {
+  beforeEach(() => {
+    capturedRunners.length = 0;
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({ json: () => Promise.resolve({ data: [] }) }) as unknown as typeof fetch;
+  });
+
+  it("opens Logs Drilldown on the tab's own scope: service and environment, no namespace", () => {
+    const { getByText } = render(
+      <MemoryRouter>
+        <LogsTab
+          service="cdn"
+          namespace="staging"
+          logsUid="loki-uid"
+          from="now-1h"
+          to="now"
+          clusterFilter="stagingk8s"
+        />
+      </MemoryRouter>
+    );
+    const href = getByText('Open in Logs Drilldown').closest('a')?.getAttribute('href') ?? '';
+    const filters = new URLSearchParams(href.split('?')[1]).getAll('var-filters');
+
+    // A namespace filter matched nothing on a Loki whose streams carry no service_namespace.
+    const env = otel.labels.deploymentEnv;
+    expect(filters).toEqual(['service_name|=|cdn', `${env}|=|stagingk8s`]);
+    expect(queryRunner('A').queries[0].expr).toContain(`service_name="cdn", ${env}="stagingk8s"`);
   });
 });

@@ -9,6 +9,7 @@ import {
   buildExceptionTracesExploreUrl,
   buildTraceExploreUrl,
 } from './explore';
+import { otel } from '../otelconfig';
 
 /** Parse the `left` param from a Grafana Explore URL */
 function parseLeft(url: string): {
@@ -187,6 +188,15 @@ describe('buildLogsDrilldownUrl', () => {
     const url = buildLogsDrilldownUrl('loki-uid', 'backend', { namespace: 'otel-demo' });
     const params = new URLSearchParams(url.split('?')[1]);
     expect(params.getAll('var-filters')).toContain('service_namespace|=|otel-demo');
+  });
+
+  it('adds an environment filter when an environment is given', () => {
+    const url = buildLogsDrilldownUrl('loki-uid', 'backend', { environment: 'stagingk8s' });
+    const params = new URLSearchParams(url.split('?')[1]);
+    expect(params.getAll('var-filters')).toEqual([
+      'service_name|=|backend',
+      `${otel.labels.deploymentEnv}|=|stagingk8s`,
+    ]);
   });
 
   it('uses the overridden label as both the path slug and filter key', () => {

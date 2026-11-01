@@ -196,6 +196,8 @@ export function buildLogsDrilldownUrl(
     from?: string;
     to?: string;
     namespace?: string;
+    /** deployment_environment, for a Loki shared by several environments. */
+    environment?: string;
     serviceNameLabel?: string;
     serviceNamespaceLabel?: string;
   }
@@ -214,6 +216,9 @@ export function buildLogsDrilldownUrl(
   const filters = [`${svcLabel}|=|${escapeDrilldownFilterValue(serviceName)}`];
   if (options?.namespace) {
     filters.push(`${nsLabel}|=|${escapeDrilldownFilterValue(options.namespace)}`);
+  }
+  if (options?.environment) {
+    filters.push(`${otel.labels.deploymentEnv}|=|${escapeDrilldownFilterValue(options.environment)}`);
   }
 
   return urlUtil.renderUrl(
