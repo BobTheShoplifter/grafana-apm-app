@@ -87,6 +87,23 @@ describe('ReplayPlayer', () => {
     expect(stage.style.height).toBe('1295px');
   });
 
+  it('centres a recording narrower than the frame, and scales a wider one down to fill it', () => {
+    const frameWidth = jest.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(2000);
+    try {
+      render(<ReplayPlayer events={[meta(1000, 1000, 600), ev(1000, 2), ev(9000)]} mode="recording" />);
+      const narrow = mockCtor.mock.calls[0][1].root as HTMLElement;
+      expect(narrow.style.transform).toBe('scale(1)');
+      expect(narrow.style.left).toBe('500px');
+
+      render(<ReplayPlayer events={[meta(1000, 4000, 2000), ev(1000, 2), ev(9000)]} mode="recording" />);
+      const wide = mockCtor.mock.calls[1][1].root as HTMLElement;
+      expect(wide.style.transform).toBe('scale(0.5)');
+      expect(wide.style.left).toBe('0px');
+    } finally {
+      frameWidth.mockRestore();
+    }
+  });
+
   it('follows the replayer when a later page load or window resize changes the viewport', () => {
     render(<ReplayPlayer events={[meta(1000, 2563, 1296), ev(1000, 2), ev(9000)]} mode="recording" />);
     const stage = mockCtor.mock.calls[0][1].root as HTMLElement;

@@ -184,6 +184,9 @@ export default function ReplayPlayer({ events, mode, seekToMs }: ReplayPlayerPro
       const scale = Math.min(1, available / viewport.width);
       stage.style.transform = `scale(${scale})`;
       stage.style.transformOrigin = 'top left';
+      // Never scaled up, so a recording narrower than the frame (a laptop or a phone in a wide
+      // Grafana) is centred rather than pinned to the left edge.
+      stage.style.left = `${Math.round(Math.max(0, (available - viewport.width * scale) / 2))}px`;
       // The host has to reserve the SCALED height, or the surrounding page lays out against
       // the unscaled one and leaves a large gap under the replay.
       host.style.height = `${Math.round(viewport.height * scale)}px`;
