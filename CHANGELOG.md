@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.24.10
+
+### Bug Fixes
+
+* a recording narrower than the frame is centred. The player scales a recording down to the
+  frame but never up, so one recorded in a narrower window sat against the left edge.
+
 ## 0.24.9
 
 ### Bug Fixes
