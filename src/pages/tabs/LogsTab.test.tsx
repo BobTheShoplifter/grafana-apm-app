@@ -1,5 +1,5 @@
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { LogsTab } from './LogsTab';
 
@@ -108,5 +108,40 @@ describe('LogsTab severity filter', () => {
     const expr = queryRunner('A').queries[0].expr as string;
     expect(expr).toContain('detected_level=~"warn"');
     expect(expr).not.toContain('WARN');
+  });
+});
+
+describe('LogsTab pod filter', () => {
+  const lastRunner = (refId: string): CapturedQuery => {
+    const runners = capturedRunners.filter((r) => r.queries[0]?.refId === refId);
+    if (runners.length === 0) {
+      throw new Error(`no captured query runner with refId ${refId}`);
+    }
+    return runners[runners.length - 1];
+  };
+
+  beforeEach(() => {
+    capturedRunners.length = 0;
+  });
+
+  it('filters on k8s_pod_name when the service streams carry it', async () => {
+    global.fetch = jest.fn((url: string) =>
+      Promise.resolve({
+        json: () => Promise.resolve({ data: url.includes('/label/k8s_pod_name/') ? ['api-1', 'api-2'] : [] }),
+      })
+    ) as unknown as typeof fetch;
+    renderTab('?logPod=api-1');
+    await waitFor(() => expect(lastRunner('A').queries[0].expr).toContain('k8s_pod_name="api-1"'));
+  });
+
+  it('falls back to the `pod` label that Alloy and Promtail attach', async () => {
+    global.fetch = jest.fn((url: string) =>
+      Promise.resolve({
+        json: () => Promise.resolve({ data: url.includes('/label/pod/') ? ['api-1', 'api-2'] : [] }),
+      })
+    ) as unknown as typeof fetch;
+    renderTab('?logPod=api-1');
+    await waitFor(() => expect(lastRunner('A').queries[0].expr).toContain(', pod="api-1"'));
+    expect(lastRunner('A').queries[0].expr).not.toContain('k8s_pod_name');
   });
 });

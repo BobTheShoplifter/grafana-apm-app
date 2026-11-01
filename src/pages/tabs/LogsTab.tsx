@@ -50,6 +50,9 @@ const FARO_KIND_OPTIONS: Array<{ label: string; value: string }> = [
   { label: 'Events', value: 'event' },
 ];
 
+
+/** Stream labels that name a pod, in the order they are tried. */
+const POD_LABELS = ['k8s_pod_name', 'pod'];
 export function LogsTab({
   service,
   namespace,
@@ -67,6 +70,9 @@ export function LogsTab({
   const [includeFaro, setIncludeFaro] = useUrlBoolean('includeFaro');
   const [kindFilter, setKindFilter] = useUrlCsv('kindFilter');
   const [podOptions, setPodOptions] = useState<Array<{ label: string; value: string }>>([]);
+  // The stream label that names the pod: `k8s_pod_name` from an OTel collector's Loki exporter,
+  // `pod` from Alloy/Promtail's Kubernetes discovery. Whichever this service's streams carry.
+  const [podLabel, setPodLabel] = useState<string>(POD_LABELS[0]);
   const debouncedSearch = useDebouncedValue(logSearch, 500);
   const styles = useStyles2(getStyles);
   // Resolved timestamps drive the patterns fetch AND bust the scene memo on a
@@ -74,22 +80,31 @@ export function LogsTab({
   // re-resolve), so the scene rebuilds and re-queries the fresh window.
   const { fromMs, toMs } = useTimeRange();
 
-  // Fetch available pod names for this service
+  // Fetch available pod names for this service, from the first pod label its streams carry.
   useEffect(() => {
     const controller = new AbortController();
     const clusterMatcher = clusterFilter ? `, ${otel.labels.deploymentEnv}="${sanitizeLabelValue(clusterFilter)}"` : '';
-    fetch(
-      `/api/datasources/proxy/uid/${encodeURIComponent(logsUid)}/loki/api/v1/label/k8s_pod_name/values?query=${encodeURIComponent(`{${serviceNameLabel}="${sanitizeLabelValue(service)}"${clusterMatcher}}`)}`,
-      { signal: controller.signal }
-    )
-      .then((r) => r.json())
-      .then((d: { data?: string[] }) => {
-        const pods = (d.data ?? []).filter((p) => p.length > 0).sort();
-        setPodOptions(pods.map((p) => ({ label: p, value: p })));
-      })
-      .catch(() => {
-        /* ignore */
-      });
+    const selector = encodeURIComponent(`{${serviceNameLabel}="${sanitizeLabelValue(service)}"${clusterMatcher}}`);
+    const podsFor = (label: string): Promise<string[]> =>
+      fetch(
+        `/api/datasources/proxy/uid/${encodeURIComponent(logsUid)}/loki/api/v1/label/${label}/values?query=${selector}`,
+        { signal: controller.signal }
+      )
+        .then((r) => r.json())
+        .then((d: { data?: string[] }) => (d.data ?? []).filter((p) => p.length > 0).sort());
+    (async () => {
+      for (const label of POD_LABELS) {
+        const pods = await podsFor(label);
+        if (pods.length > 0) {
+          setPodLabel(label);
+          setPodOptions(pods.map((p) => ({ label: p, value: p })));
+          return;
+        }
+      }
+      setPodOptions([]);
+    })().catch(() => {
+      /* ignore */
+    });
     return () => controller.abort();
   }, [service, logsUid, serviceNameLabel, clusterFilter]);
 
@@ -118,8 +133,8 @@ export function LogsTab({
       }
     }
 
-    // Pod filtering uses k8s_pod_name stream label (only present on backend log streams).
-    const podStream = podFilter ? `, k8s_pod_name="${sanitizeLabelValue(podFilter)}"` : '';
+    // Pod filtering uses the pod stream label found above (only present on backend log streams).
+    const podStream = podFilter ? `, ${podLabel}="${sanitizeLabelValue(podFilter)}"` : '';
 
     const streamSelector = `{${svcLabel}${clusterStream}${kindStream}${podStream}}`;
 
@@ -202,6 +217,7 @@ export function LogsTab({
     severityFilter,
     debouncedSearch,
     podFilter,
+    podLabel,
     includeFaro,
     kindFilter,
     fromMs,
