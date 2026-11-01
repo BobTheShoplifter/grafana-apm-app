@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.24.7
+
+### Bug Fixes
+
+* the trace breakdown offers `http.response.status_code`. OpenTelemetry SDKs on semconv 1.23 or
+  later stop sending `http.status_code`, so services instrumented with them had no HTTP status
+  breakdown at all; both names are offered and the per-service probe keeps the one with data.
+* the Logs tab finds pods under `pod` as well as `k8s_pod_name`. Alloy and Promtail Kubernetes
+  discovery name the pod `pod`, so the pod picker stayed empty and a pod filter matched nothing
+  for services shipped that way.
+
 ## 0.24.6
 
 ### Features
