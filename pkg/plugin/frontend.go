@@ -74,7 +74,11 @@ func (a *App) queryFrontendFromAlloyHistogram(ctx context.Context, service, envi
 
 	if !hasRecentData {
 		// No recent data — check if the metric series exists at all (instrumented but idle).
-		existsQ := fmt.Sprintf(`count(%s_bucket{%s})`, h.LCP, filter)
+		// Within the window, not at this instant: Alloy drops a loki.process series once it
+		// has been idle for max_idle_duration (5m by default), so a quiet app's series is
+		// usually gone right now although it reported minutes ago. And a series born with its
+		// only observation shows no increase() at all, so the check above misses it too.
+		existsQ := fmt.Sprintf(`count(last_over_time(%s_bucket{%s}[6h]))`, h.LCP, filter)
 		existsR, existsErr := a.prom(ctx).InstantQuery(ctx, existsQ, at)
 		if existsErr != nil || len(existsR) == 0 || existsR[0].Value.Float() == 0 {
 			// Metric doesn't exist → not instrumented at all.

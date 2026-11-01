@@ -295,10 +295,13 @@ func (a *App) checkRuntimeMetrics(ctx context.Context, namespace, service, env s
 }
 
 func (a *App) checkBrowserTelemetry(ctx context.Context, service, env string, at time.Time) bool {
-	// Presence of any Alloy-generated Faro metric for this app — mirrors the
-	// Frontend tab's histogram detection but as a single cheap probe.
+	// The Frontend tab's own signal, the LCP histogram, over its 6h window rather than at
+	// this instant: Alloy drops an idle loki.process series after max_idle_duration (5m by
+	// default), so a quiet app read as uninstrumented minutes after its last visit. One metric
+	// name, because last_over_time drops __name__ and several would collide.
+	h := a.otelCfg.AlloyHistogramMetrics
 	return a.promSelectorNonEmpty(ctx, fmt.Sprintf(
-		`{%s, __name__=~".*faro_.*"}`, a.otelCfg.AlloyHistogramFilter(service, env)), at)
+		`last_over_time(%s_bucket{%s}[6h])`, h.LCP, a.otelCfg.AlloyHistogramFilter(service, env)), at)
 }
 
 // checkTempoTraces asks Tempo's search API (through the datasource proxy) for
