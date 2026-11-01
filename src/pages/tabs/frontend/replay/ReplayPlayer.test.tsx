@@ -5,7 +5,7 @@
  * not-enough-events guard, teardown, and the lazy boundary resolving.
  */
 import React, { Suspense } from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 
 jest.mock('@grafana/rrweb-replay', () => {
   const instance = {
@@ -14,6 +14,7 @@ jest.mock('@grafana/rrweb-replay', () => {
     destroy: jest.fn(),
     setConfig: jest.fn(),
     getCurrentTime: jest.fn().mockReturnValue(0),
+    on: jest.fn(),
   };
   const ctor = jest.fn().mockImplementation(() => instance);
   return { __esModule: true, Replayer: ctor, __instance: instance };
@@ -39,6 +40,7 @@ beforeEach(() => {
   mockInstance.pause.mockClear();
   mockInstance.destroy.mockClear();
   mockInstance.setConfig.mockClear();
+  mockInstance.on.mockClear();
 });
 
 describe('ReplayPlayer', () => {
@@ -83,6 +85,19 @@ describe('ReplayPlayer', () => {
     // Not the container's size: rrweb lays the DOM out at the original dimensions and we scale.
     expect(stage.style.width).toBe('2336px');
     expect(stage.style.height).toBe('1295px');
+  });
+
+  it('follows the replayer when a later page load or window resize changes the viewport', () => {
+    render(<ReplayPlayer events={[meta(1000, 2563, 1296), ev(1000, 2), ev(9000)]} mode="recording" />);
+    const stage = mockCtor.mock.calls[0][1].root as HTMLElement;
+    expect(stage.style.width).toBe('2563px');
+
+    const onResize = mockInstance.on.mock.calls.find(([event]: [string]) => event === 'resize')?.[1];
+    act(() => onResize({ width: 1477, height: 1296 }));
+
+    // Sized to the first page only, the narrower one would fill part of the frame.
+    expect(stage.style.width).toBe('1477px');
+    expect(stage.style.height).toBe('1296px');
   });
 
   it("pins rrweb's wrapper to the stage's corner, against the player stylesheet's 50% offset", () => {

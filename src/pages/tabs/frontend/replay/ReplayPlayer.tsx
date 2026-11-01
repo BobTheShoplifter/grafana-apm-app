@@ -109,7 +109,13 @@ export default function ReplayPlayer({ events, mode, seekToMs }: ReplayPlayerPro
   const [offsetMs, setOffsetMs] = useState(isSnapshot ? 0 : startAtMs);
   const [speed, setSpeed] = useState(1);
 
-  const viewport = useMemo(() => recordedViewport(events), [events]);
+  // The size the replayed page is laid out at: the first Meta event's, then whatever the
+  // replayer resizes to. A session spans page loads and window resizes, each with its own
+  // viewport; scaled to the first one only, a later narrower page left the rest of the frame
+  // blank, and a wider one was clipped.
+  const recorded = useMemo(() => recordedViewport(events), [events]);
+  const [resized, setResized] = useState<{ width: number; height: number } | null>(null);
+  const viewport = resized ?? recorded;
   const externalStyles = useMemo(() => unfetchableStylesheets(events), [events]);
   const durationMs = useMemo(() => {
     if (events.length < 2) {
@@ -134,6 +140,12 @@ export default function ReplayPlayer({ events, mode, seekToMs }: ReplayPlayerPro
       mouseTail: false,
     });
     replayerRef.current = replayer;
+    replayer.on('resize', (dimension) => {
+      const { width, height } = (dimension ?? {}) as { width?: number; height?: number };
+      if (width && height) {
+        setResized({ width, height });
+      }
+    });
 
     // A snapshot has one frame worth looking at, so paint it and stop. A recording starts at
     // the requested offset, or at the beginning.
@@ -152,6 +164,7 @@ export default function ReplayPlayer({ events, mode, seekToMs }: ReplayPlayerPro
       }
       replayerRef.current = null;
       stage.replaceChildren();
+      setResized(null);
     };
   }, [events, hasEnoughEvents, isSnapshot, startAtMs]);
 
