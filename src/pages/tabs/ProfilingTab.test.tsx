@@ -37,6 +37,13 @@ jest.mock('../../utils/timeRange', () => ({
 
 jest.mock('../../utils/useSceneTimeSync', () => ({ useSceneTimeSync: jest.fn() }));
 
+// The tab asks the datasource for the service's profile types at mount. An empty answer keeps
+// the fallback list these query-model tests assert against.
+jest.mock('@grafana/runtime', () => {
+  const { of } = jest.requireActual('rxjs');
+  return { getBackendSrv: () => ({ fetch: () => of({ data: [] }) }) };
+});
+
 jest.mock('@grafana/ui', () => ({
   useStyles2: () => ({ wrapper: '', controls: '', label: '', sceneWrapper: '' }),
   Combobox: ({
