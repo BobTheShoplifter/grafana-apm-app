@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.8
+
+### Bug Fixes
+
+* replays are drawn in the frame. rrweb-player's stylesheet offsets `.replayer-wrapper` by
+  `left: 50%; top: 50%`, which only its own Svelte player cancels; this player scales the stage
+  instead, so every replay was drawn half a frame right and down and mostly clipped.
+
 ## 0.24.7
 
 ### Bug Fixes
