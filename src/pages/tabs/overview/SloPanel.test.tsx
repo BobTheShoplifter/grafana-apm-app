@@ -22,6 +22,7 @@ jest.mock('../../../utils/capabilities', () => ({
 
 jest.mock('../../../utils/datasources', () => ({
   usePluginDatasources: () => ({ metricsUid: 'mimir', tracesUid: 'tempo', logsUid: 'loki' }),
+  usePluginLabelOverrides: () => ({}),
 }));
 
 // Keep the pure compute/selector logic real; only stub the network calls.

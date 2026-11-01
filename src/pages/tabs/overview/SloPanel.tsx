@@ -8,7 +8,7 @@ import { buildAlertRuleUrl } from '../../../api/client';
 import { apmDocs } from '../../../utils/docsLinks';
 import { useFetch } from '../../../utils/useFetch';
 import { useCapabilities, getMetricNames } from '../../../utils/capabilities';
-import { usePluginDatasources } from '../../../utils/datasources';
+import { usePluginDatasources, usePluginLabelOverrides } from '../../../utils/datasources';
 import {
   BurnWindow,
   DEFAULT_SLO_TARGET,
@@ -52,7 +52,11 @@ export function SloPanel({ namespace, service, environment }: SloPanelProps) {
   const { callsMetric } = getMetricNames(caps);
   const { metricsUid } = usePluginDatasources(environment);
 
-  const selector = useMemo(() => sloSelector(service, namespace, environment), [service, namespace, environment]);
+  const labelOverrides = usePluginLabelOverrides();
+  const selector = useMemo(
+    () => sloSelector(service, namespace, environment, labelOverrides),
+    [service, namespace, environment, labelOverrides]
+  );
 
   const { data, loading, error } = useFetch(
     () => fetchSloMetrics(metricsUid, callsMetric, selector),

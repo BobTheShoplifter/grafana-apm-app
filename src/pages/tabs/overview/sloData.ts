@@ -24,6 +24,7 @@
 import { getBackendSrv } from '@grafana/runtime';
 import { lastValueFrom } from 'rxjs';
 import { otel } from '../../../otelconfig';
+import { LabelOverrides } from '../../../types/plugin';
 import { sanitizeLabelValue } from '../../../utils/sanitize';
 import pluginJson from '../../../plugin.json';
 
@@ -64,14 +65,21 @@ export interface SloComputed {
 
 /**
  * Build the PromQL label selector for a service, mirroring buildServiceScene's
- * svcFilter (service_name [+ service_namespace] [+ deployment env]). Multiple
- * comma-separated environments become a regex matcher, like the backend's
- * envMatcher.
+ * svcFilter (service_name [+ service_namespace] [+ deployment env]) and its label
+ * overrides: with the built-in names, a deployment whose span metrics say `service`
+ * matched nothing and the error budget never had data. Multiple comma-separated
+ * environments become a regex matcher, like the backend's envMatcher.
  */
-export function sloSelector(service: string, namespace: string, environment?: string): string {
-  let sel = `${otel.labels.serviceName}="${sanitizeLabelValue(service)}"`;
+export function sloSelector(
+  service: string,
+  namespace: string,
+  environment?: string,
+  labels: Pick<LabelOverrides, 'serviceNameLabel' | 'serviceNamespaceLabel' | 'deploymentEnvLabel'> = {}
+): string {
+  const envLabel = labels.deploymentEnvLabel || otel.labels.deploymentEnv;
+  let sel = `${labels.serviceNameLabel || otel.labels.serviceName}="${sanitizeLabelValue(service)}"`;
   if (namespace) {
-    sel += `, ${otel.labels.serviceNamespace}="${sanitizeLabelValue(namespace)}"`;
+    sel += `, ${labels.serviceNamespaceLabel || otel.labels.serviceNamespace}="${sanitizeLabelValue(namespace)}"`;
   }
   if (environment) {
     const envs = environment
@@ -79,9 +87,9 @@ export function sloSelector(service: string, namespace: string, environment?: st
       .map((e) => sanitizeLabelValue(e.trim()))
       .filter(Boolean);
     if (envs.length === 1) {
-      sel += `, ${otel.labels.deploymentEnv}="${envs[0]}"`;
+      sel += `, ${envLabel}="${envs[0]}"`;
     } else if (envs.length > 1) {
-      sel += `, ${otel.labels.deploymentEnv}=~"${envs.join('|')}"`;
+      sel += `, ${envLabel}=~"${envs.join('|')}"`;
     }
   }
   return sel;

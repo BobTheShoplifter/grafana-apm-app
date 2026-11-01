@@ -57,6 +57,17 @@ describe('sloSelector', () => {
     expect(sloSelector('my-svc', '')).toBe('service_name="my-svc"');
   });
 
+  it('uses the configured label overrides, as the service scene does', () => {
+    const labels = {
+      serviceNameLabel: 'service',
+      serviceNamespaceLabel: 'service_namespace',
+      deploymentEnvLabel: 'deployment_environment',
+    };
+    expect(sloSelector('cdn', 'staging', 'stagingk8s', labels)).toBe(
+      'service="cdn", service_namespace="staging", deployment_environment="stagingk8s"'
+    );
+  });
+
   it('uses a regex matcher for multiple environments', () => {
     expect(sloSelector('my-svc', 'team-a', 'prod-gcp,prod-fss')).toBe(
       'service_name="my-svc", service_namespace="team-a", k8s_cluster_name=~"prod-gcp|prod-fss"'
