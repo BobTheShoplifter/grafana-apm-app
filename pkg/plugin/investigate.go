@@ -214,11 +214,21 @@ func sanitizeEnvironment(env string) string {
 		return ""
 	}
 	for _, r := range env {
-		if !(r == '-' || r == '_' || r == '.' || r == '/' || (r >= '0' && r <= '9') || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')) {
+		if !isEnvRune(r) {
 			return ""
 		}
 	}
 	return env
+}
+
+func isEnvRune(r rune) bool {
+	switch {
+	case r >= '0' && r <= '9', r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+		return true
+	case r == '-', r == '_', r == '.', r == '/':
+		return true
+	}
+	return false
 }
 
 // userFacingError turns a run error into a message for the drawer, without internals.
@@ -405,7 +415,7 @@ func (inv *investigation) run(ctx context.Context) (tokenUsage, int, error) {
 		betas = append(betas, anthropic.AnthropicBetaThinkingDisplayUpdates2026_08_18)
 	}
 	params := anthropic.BetaMessageNewParams{
-		Model:     anthropic.Model(model),
+		Model:     model,
 		MaxTokens: investigationMaxTokens,
 		System:    []anthropic.BetaTextBlockParam{{Text: inv.systemPrompt(ctx)}},
 		Messages: []anthropic.BetaMessageParam{

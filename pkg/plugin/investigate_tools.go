@@ -733,7 +733,9 @@ func runGetTrace(ctx context.Context, inv *investigation, raw json.RawMessage) (
 		if err := json.Unmarshal(body, &v1); err != nil {
 			return "", fmt.Errorf("unexpected response: %v", err)
 		}
-		batches = append(v1.Batches, v1.ResourceSpans...)
+		batches = make([]otlpResourceSpans, 0, len(v1.Batches)+len(v1.ResourceSpans))
+		batches = append(batches, v1.Batches...)
+		batches = append(batches, v1.ResourceSpans...)
 	}
 	return summariseTrace(id, batches), nil
 }
