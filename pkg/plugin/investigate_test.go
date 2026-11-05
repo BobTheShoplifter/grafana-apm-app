@@ -69,6 +69,8 @@ func newInvestigationTestApp(t *testing.T) (*App, *[]string) {
 		case strings.HasSuffix(r.URL.Path, "/uid/mimir/api/v1/query_range"):
 			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"matrix","result":[
 				{"metric":{"service":"checkout"},"values":[[1700000000,"1"],[1700000060,"5"],[1700000120,"3"]]}]}}`))
+		case strings.HasSuffix(r.URL.Path, "/uid/loki/loki/api/v1/labels"):
+			http.Redirect(w, r, "https://elsewhere.example/steal", http.StatusFound)
 		case strings.HasSuffix(r.URL.Path, "/uid/loki/loki/api/v1/query_range"):
 			_, _ = w.Write([]byte(`{"status":"success","data":{"resultType":"streams","result":[
 				{"stream":{"service_name":"checkout"},"values":[["1700000000000000000","boom: connection refused"]]}]}}`))
@@ -104,7 +106,7 @@ func newTestInvestigation(app *App, model investigationModel, events *[]sentEven
 	end := time.Now()
 	return &investigation{
 		app: app, model: model, settings: app.investigationSettings(),
-		headers: http.Header{}, http: &http.Client{Timeout: 5 * time.Second},
+		headers: http.Header{}, http: newInvestigationHTTPClient(),
 		namespace: "shop", service: "checkout", start: end.Add(-time.Hour), end: end,
 		emit: func(typ string, payload any) {
 			raw, _ := json.Marshal(payload)
@@ -441,4 +443,15 @@ func TestKeepAliveStopWaitsForTheWriter(t *testing.T) {
 		t.Fatalf("keep-alive wrote after stop or never: %q", rec.Body.String())
 	}
 	stop() // a second stop is harmless
+}
+
+func TestInvestigationToolsRejectRedirects(t *testing.T) {
+	app, _ := newInvestigationTestApp(t)
+	var events []sentEvent
+	inv := newTestInvestigation(app, &scriptedModel{}, &events)
+	inv.headers.Set("Cookie", "grafana_session=secret")
+	_, err := runListLabels(context.Background(), inv, json.RawMessage(`{"source":"logs"}`))
+	if err == nil || !strings.Contains(err.Error(), "redirect response rejected") {
+		t.Fatalf("err = %v, want the redirect rejected", err)
+	}
 }

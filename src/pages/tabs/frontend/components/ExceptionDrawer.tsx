@@ -33,6 +33,7 @@ import {
 import { otel } from '../../../../otelconfig';
 import { PLUGIN_BASE_URL } from '../../../../constants';
 import { sanitizeLabelValue } from '../../../../utils/sanitize';
+import { hasAlertRoutingContext } from '../../../../utils/alertRouting';
 import { apmDocs, frontendDocs } from '../../../../utils/docsLinks';
 import { usePluginLabelOverrides, usePluginDatasources } from '../../../../utils/datasources';
 import { useTimeRange } from '../../../../utils/timeRange';
@@ -133,7 +134,7 @@ export function ExceptionDrawer({
 }: ExceptionDrawerProps) {
   const styles = useStyles2(getStyles);
   const [breadcrumbs, setBreadcrumbs] = useState<GroupedBreadcrumb[]>([]);
-  const [loadingBreadcrumbs, setLoadingBreadcrumbs] = useState(false);
+  const [loadingBreadcrumbs, setLoadingBreadcrumbs] = useState(!!selectedSessionId);
   const [replayProbe, setReplayProbe] = useState<ReplayProbeResult | null>(null);
   const [creatingAlert, setCreatingAlert] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
@@ -151,6 +152,7 @@ export function ExceptionDrawer({
   const [searchParams] = useSearchParams();
   const issueId = searchParams.get('issueId') ?? '';
   const isServer = source === 'server';
+  const canRouteAlert = hasAlertRoutingContext(namespace, environment);
 
   const fl = otel.faroLoki;
   const clusterLabel = labelOverrides.deploymentEnvLabel || otel.labels.deploymentEnv;
@@ -203,9 +205,23 @@ export function ExceptionDrawer({
   }, [isServer, occurrences]);
 
   // Reset the server picker when a new issue's occurrences load.
-  useEffect(() => {
+  const [previousPicker, setPreviousPicker] = useState({ issueId, count: occurrences.length });
+  if (previousPicker.issueId !== issueId || previousPicker.count !== occurrences.length) {
+    setPreviousPicker({ issueId, count: occurrences.length });
     setServerIndex(0);
-  }, [issueId, occurrences.length]);
+  }
+
+  const breadcrumbRequest = useMemo(
+    () => [selectedSessionId, service, environment, logsUid, clusterStream, fromMs, toMs, fl.serviceName, fl.sessionId],
+    [selectedSessionId, service, environment, logsUid, clusterStream, fromMs, toMs, fl.serviceName, fl.sessionId]
+  );
+  const [previousBreadcrumbRequest, setPreviousBreadcrumbRequest] = useState(breadcrumbRequest);
+  if (previousBreadcrumbRequest !== breadcrumbRequest) {
+    setPreviousBreadcrumbRequest(breadcrumbRequest);
+    if (selectedSessionId) {
+      setLoadingBreadcrumbs(true);
+    }
+  }
 
   // Fetch breadcrumbs whenever the selected session ID changes
   useEffect(() => {
@@ -213,7 +229,6 @@ export function ExceptionDrawer({
       return;
     }
     let cancelled = false;
-    setLoadingBreadcrumbs(true);
 
     // The |= line filter lets Loki skip logfmt-parsing every Faro line for the app.
     const breadcrumbsQuery = `{${fl.serviceName}="${sanitizeLabelValue(service)}"${clusterStream}} |= \`${fl.sessionId}=${sanitizeLabelValue(selectedSessionId)}\` | logfmt | ${fl.sessionId}="${sanitizeLabelValue(selectedSessionId)}"`;
@@ -298,8 +313,16 @@ export function ExceptionDrawer({
   // Probe for session-replay chunks (#58/#67) whenever the session changes —
   // a cheap count-only metric query; the chunks themselves are only fetched
   // when the user clicks the replay button.
-  useEffect(() => {
+  const replayRequest = useMemo(
+    () => [selectedSessionId, service, environment, logsUid, clusterLabel, fromMs, toMs],
+    [selectedSessionId, service, environment, logsUid, clusterLabel, fromMs, toMs]
+  );
+  const [previousReplayRequest, setPreviousReplayRequest] = useState(replayRequest);
+  if (previousReplayRequest !== replayRequest) {
+    setPreviousReplayRequest(replayRequest);
     setReplayProbe(null);
+  }
+  useEffect(() => {
     if (!selectedSessionId) {
       return;
     }
@@ -331,11 +354,21 @@ export function ExceptionDrawer({
   // rather than narrowing to whichever occurrence happens to be selected.
   // No fingerprint (legacy exceptionHash-only links) means no reliable join
   // key, so skip the fetch entirely rather than showing unrelated feedback.
+  const feedbackRequest = useMemo(
+    () => [issueId, isServer, namespace, service, environment, fromMs, toMs],
+    [issueId, isServer, namespace, service, environment, fromMs, toMs]
+  );
+  const [previousFeedbackRequest, setPreviousFeedbackRequest] = useState(feedbackRequest);
+  if (previousFeedbackRequest !== feedbackRequest) {
+    setPreviousFeedbackRequest(feedbackRequest);
+    if (!issueId || isServer) {
+      setFeedback([]);
+    }
+  }
   useEffect(() => {
     // Feedback is browser-captured (@nais/apm) and joined by fingerprint;
     // server feedback is deferred (#84), so skip the fetch for server issues.
     if (!issueId || isServer) {
-      setFeedback([]);
       return;
     }
     let cancelled = false;
@@ -427,12 +460,14 @@ export function ExceptionDrawer({
   const scriptUrl = useMemo(() => (stacktrace ? firstScriptUrl(stacktrace) : undefined), [stacktrace]);
 
   // Reset the doctor + dismissal when the shown stack changes.
-  useEffect(() => {
+  const [previousStacktrace, setPreviousStacktrace] = useState(stacktrace);
+  if (previousStacktrace !== stacktrace) {
+    setPreviousStacktrace(stacktrace);
     setMinifiedDismissed(false);
     setDiagnosis(null);
     setDiagnosisError(null);
     setDiagnosing(false);
-  }, [stacktrace]);
+  }
 
   const runDiagnosis = async () => {
     if (!scriptUrl) {
@@ -837,10 +872,11 @@ export function ExceptionDrawer({
                     variant="secondary"
                     icon="bell"
                     onClick={onCreateAlert}
-                    disabled={creatingAlert || hashes.length === 0}
+                    disabled={creatingAlert || hashes.length === 0 || !canRouteAlert}
                   >
                     {creatingAlert ? 'Preparing alert…' : 'Create alert'}
                   </Button>
+                  {!canRouteAlert && <span>Select a team and exactly one environment to create an alert.</span>}
                   <TextLink
                     href={apmDocs.createAlerts()}
                     external

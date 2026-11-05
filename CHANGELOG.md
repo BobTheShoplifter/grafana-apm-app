@@ -152,6 +152,80 @@
 * parseLogfmt no longer truncates a quoted value at its first escaped quote. Any field whose
   value is quoted text or JSON lost everything after that point, which made replay events
   undecodable and cut exception messages short.
+## [0.25.8](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.7...nais-apm-app-v0.25.8) (2026-11-04)
+
+
+### Bug Fixes
+
+* hide Grafana links for Mimir alert rules ([#238](https://github.com/nais/grafana-apm-app/issues/238)) ([7849183](https://github.com/nais/grafana-apm-app/commit/7849183e4f1180fae0d359b8bcd629657e2d1852))
+
+## [0.25.7](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.6...nais-apm-app-v0.25.7) (2026-11-04)
+
+
+### Bug Fixes
+
+* grant plugin access to alert rules and datasource metadata ([#235](https://github.com/nais/grafana-apm-app/issues/235)) ([e1eb73d](https://github.com/nais/grafana-apm-app/commit/e1eb73db3f42469813e3fbb1ac9c12f2433401b2))
+
+## [0.25.6](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.5...nais-apm-app-v0.25.6) (2026-11-03)
+
+
+### Bug Fixes
+
+* match alert team folders case-sensitively ([#234](https://github.com/nais/grafana-apm-app/issues/234)) ([f832296](https://github.com/nais/grafana-apm-app/commit/f832296839348135e93ab5ff3b667b475f294a2a))
+* **queries:** block authenticated proxy redirects ([#229](https://github.com/nais/grafana-apm-app/issues/229)) ([19bca14](https://github.com/nais/grafana-apm-app/commit/19bca14e986bfdac28ed2dd04bec5737fca56cb0))
+
+## [0.25.5](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.4...nais-apm-app-v0.25.5) (2026-11-02)
+
+
+### Bug Fixes
+
+* preselect team folder for new alert rules ([#216](https://github.com/nais/grafana-apm-app/issues/216)) ([1521dce](https://github.com/nais/grafana-apm-app/commit/1521dce4a333b0deba4361e15dcdb8b1a1d1deb5))
+* update Node.js version for plugin signing to 24.5.0 ([#212](https://github.com/nais/grafana-apm-app/issues/212)) ([a86287d](https://github.com/nais/grafana-apm-app/commit/a86287df0be3f1f98e227b108e9d3810f1a2833a))
+
+## [0.25.4](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.3...nais-apm-app-v0.25.4) (2026-11-01)
+
+
+### Bug Fixes
+
+* correct alert routing and severity labels ([#211](https://github.com/nais/grafana-apm-app/issues/211)) ([7997e94](https://github.com/nais/grafana-apm-app/commit/7997e94bc5c1aa1f734607730500750a61a44ae2))
+* parse namespace from double-slash ruler group paths ([#207](https://github.com/nais/grafana-apm-app/issues/207)) ([48d5adc](https://github.com/nais/grafana-apm-app/commit/48d5adc8dbfb328639e57798c7f635b0318e7d17))
+* security bumps and base URL allowlist ([#210](https://github.com/nais/grafana-apm-app/issues/210)) ([80dc79b](https://github.com/nais/grafana-apm-app/commit/80dc79b4a12fee86f0c435905c3721525b264fce))
+
+## [0.25.3](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.2...nais-apm-app-v0.25.3) (2026-10-15)
+
+
+### Performance Improvements
+
+* reduce service inventory query load ([#202](https://github.com/nais/grafana-apm-app/issues/202)) ([3118680](https://github.com/nais/grafana-apm-app/commit/3118680c44081c18300c119217d0d8f673ecd03d))
+
+## [0.25.2](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.1...nais-apm-app-v0.25.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* clarify release commit titles ([#200](https://github.com/nais/grafana-apm-app/issues/200)) ([509c644](https://github.com/nais/grafana-apm-app/commit/509c644b435b66066d8a96e02d335f10199cc6d8))
+
+## [0.25.1](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.0...nais-apm-app-v0.25.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* filter logs when environments share Loki ([#195](https://github.com/nais/grafana-apm-app/issues/195)) ([fde59fb](https://github.com/nais/grafana-apm-app/commit/fde59fbc6ade98b35a49a0dc7d8fd653bcb0eba5))
+
+## [0.25.0](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.24.0...nais-apm-app-v0.25.0) (2026-09-25)
+
+
+### Features
+
+* **alerts:** new issues → Slack via a copy-pasteable PrometheusRule ([#177](https://github.com/nais/grafana-apm-app/issues/177)) ([257c88c](https://github.com/nais/grafana-apm-app/commit/257c88cfaa7e34b8d447a0e99d9b1ed134544e02))
+* **scorecard:** make every failing readiness check one click to fix ([#176](https://github.com/nais/grafana-apm-app/issues/176)) ([7abe3ad](https://github.com/nais/grafana-apm-app/commit/7abe3ad4db8cd0540f2f8cf97b0c09b6e0cad11d))
+
+
+### Bug Fixes
+
+* **build:** drop tsconfig baseUrl ahead of the TypeScript 7 bump ([#179](https://github.com/nais/grafana-apm-app/issues/179)) ([a6399fc](https://github.com/nais/grafana-apm-app/commit/a6399fc045519cb992cd6ceb751c01c5c8ebffc5))
+* **deps:** pin transitive dependencies flagged by Dependabot ([#178](https://github.com/nais/grafana-apm-app/issues/178)) ([8cfbc1f](https://github.com/nais/grafana-apm-app/commit/8cfbc1f34881815ca30423c831160215c58639aa))
+* show low-traffic services across selected time range ([#193](https://github.com/nais/grafana-apm-app/issues/193)) ([64d1735](https://github.com/nais/grafana-apm-app/commit/64d17355a5041a00950e3a0d2e09ada8d298a8e9))
 
 ## [0.24.0](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.23.1...nais-apm-app-v0.24.0) (2026-09-05)
 

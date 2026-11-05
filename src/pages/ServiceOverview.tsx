@@ -17,6 +17,7 @@ import { useTimeRange } from '../utils/timeRange';
 import { InvestigateButton } from '../components/Investigate/InvestigateDrawer';
 import { useCapabilities, getMetricNames, getPyroscope } from '../utils/capabilities';
 import { useAppNavigate, sanitizeParam } from '../utils/navigation';
+import { hasAlertRoutingContext } from '../utils/alertRouting';
 import { useServiceData } from '../utils/useServiceData';
 import { getAlertTemplate, buildAlertRuleUrl } from '../api/client';
 import { buildServiceScene } from './buildServiceScene';
@@ -82,6 +83,7 @@ function ServiceOverviewInner({ namespace, service }: { namespace: string; servi
   const [searchParams, setSearchParams] = useSearchParams();
   const styles = useStyles2(getStyles);
   const envFilter = sanitizeParam(searchParams.get('environment') ?? '');
+  const canRouteAlert = hasAlertRoutingContext(namespace, envFilter);
   const ds = usePluginDatasources(envFilter || undefined);
   const hasEnvOverrides = useHasEnvironmentOverrides();
   const labelOverrides = usePluginLabelOverrides();
@@ -354,9 +356,15 @@ function ServiceOverviewInner({ namespace, service }: { namespace: string; servi
                       />
                     )}
                     <Menu.Item
-                      label={creatingAlert ? 'Creating alert…' : 'Alert on error rate'}
+                      label={
+                        !canRouteAlert
+                          ? 'Alert on error rate — select a team and exactly one environment'
+                          : creatingAlert
+                            ? 'Creating alert…'
+                            : 'Alert on error rate'
+                      }
                       icon="bell"
-                      disabled={creatingAlert}
+                      disabled={creatingAlert || !canRouteAlert}
                       onClick={onErrorRateAlert}
                     />
                   </Menu>
@@ -556,7 +564,7 @@ function ServiceOverviewInner({ namespace, service }: { namespace: string; servi
                   // log pipeline never writes.
                   serviceNameLabel={labelOverrides.logsServiceNameLabel}
                   clusterFilter={!ds.isLogsEnvSpecific ? envFilter || undefined : undefined}
-                  deploymentEnvLabel={labelOverrides.deploymentEnvLabel}
+                  clusterLabel={labelOverrides.deploymentEnvLabel}
                 />
               </ErrorBoundary>
             </div>

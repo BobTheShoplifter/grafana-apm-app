@@ -30,10 +30,10 @@ const PROMETHEUS_RULE = [
   '  name: "nais-apm-new-exceptions-orders"',
 ].join('\n');
 
-function renderTab(initialEntries: string[] = ['/']) {
+function renderTab(initialEntries: string[] = ['/'], environment = 'prod-gcp', namespace = 'teamorders') {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <AlertsTab namespace="teamorders" service="orders" environment="prod-gcp" />
+      <AlertsTab namespace={namespace} service="orders" environment={environment} />
     </MemoryRouter>
   );
 }
@@ -46,6 +46,33 @@ beforeEach(() => {
 });
 
 describe('AlertsTab (#32/#33 home)', () => {
+  it('only links Grafana-managed rules to Grafana', async () => {
+    getServiceAlerts.mockResolvedValue({
+      rules: ['grafana', 'mimir'].map((source) => ({
+        name: `${source} rule`,
+        state: 'inactive',
+        severity: '',
+        summary: '',
+        description: '',
+        activeSince: '',
+        activeCount: 0,
+        groupName: 'orders-alerts',
+        source,
+        firingState: { state: 'inactive', activeCount: 0, instances: [] },
+      })),
+    });
+
+    renderTab();
+
+    const grafanaRow = (await screen.findByText('grafana rule')).closest('tr')!;
+    const mimirRow = screen.getByText('mimir rule').closest('tr')!;
+    expect(within(grafanaRow).getByRole('link', { name: 'Open in Grafana' })).toHaveAttribute(
+      'href',
+      '/alerting/list?search=grafana%20rule'
+    );
+    expect(within(mimirRow).queryByRole('link', { name: 'Open in Grafana' })).not.toBeInTheDocument();
+  });
+
   it('lists rules with a source badge and the derived firing state (#33)', async () => {
     getServiceAlerts.mockResolvedValue({
       rules: [
@@ -185,11 +212,7 @@ describe('AlertsTab (#32/#33 home)', () => {
     renderTab(['/?firingAlert=OrdersHighErrorRate']);
 
     await waitFor(() => expect(screen.getByText('Current value')).toBeInTheDocument());
-    // Footer deep link uses the name-search fallback (no rule UID available).
-    expect(screen.getByRole('link', { name: /Open in Grafana Alerting/ })).toHaveAttribute(
-      'href',
-      '/alerting/list?search=OrdersHighErrorRate'
-    );
+    expect(screen.queryByRole('link', { name: /Open in Grafana Alerting/ })).not.toBeInTheDocument();
   });
 
   it('creates an alert via the template flow and navigates to the pre-filled editor', async () => {
@@ -208,6 +231,19 @@ describe('AlertsTab (#32/#33 home)', () => {
       )
     );
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith(expect.stringContaining('/alerting/new?defaults=')));
+  });
+
+  it.each([
+    ['no environment', '', 'teamorders'],
+    ['multiple environments', 'dev-gcp,prod-gcp', 'teamorders'],
+    ['no team', 'prod-gcp', '_'],
+  ])('disables Grafana alert templates with %s', async (_name, environment, namespace) => {
+    renderTab(['/'], environment, namespace);
+    await screen.findByText(/Select a team and exactly one environment/);
+    for (const button of screen.getAllByRole('button', { name: /Create alert/ })) {
+      expect(button).toBeDisabled();
+    }
+    expect(getAlertTemplate).not.toHaveBeenCalled();
   });
 
   // #123 Phase 1: the self-serve "new issue -> Slack" path. This section is

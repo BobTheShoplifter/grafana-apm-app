@@ -29,7 +29,7 @@ interface LogsTabProps {
   /** Cluster/environment filter to inject into stream selectors (for centralized Loki). */
   clusterFilter?: string;
   /** The stream label clusterFilter matches: the configured environment label, as the Frontend tab uses. */
-  deploymentEnvLabel?: string;
+  clusterLabel?: string;
 }
 
 // Severity options based on detected_level stream label values observed in production.
@@ -64,11 +64,11 @@ export function LogsTab({
   // streams, and the two names come from different pipelines.
   serviceNameLabel = otel.faroLoki.serviceName,
   clusterFilter,
-  deploymentEnvLabel,
+  clusterLabel,
 }: LogsTabProps) {
   // The configured label, not the built-in default: on a Loki that does not carry
   // k8s_cluster_name, the default emptied every query in this tab.
-  const envLabel = deploymentEnvLabel || otel.labels.deploymentEnv;
+  const envLabel = clusterLabel || otel.labels.deploymentEnv;
   const [severityFilter, setSeverityFilter] = useUrlCsv('logSeverity');
   const [logSearch, setLogSearch] = useUrlString('logSearch');
   const [podFilter, setPodFilter] = useUrlString('logPod');
@@ -304,6 +304,7 @@ export function LogsTab({
         logsUid={logsUid}
         fromMs={fromMs}
         toMs={toMs}
+        clusterFilter={clusterFilter}
         onSelectFilter={setLogSearch}
       />
       <div className={styles.sceneWrapper}>

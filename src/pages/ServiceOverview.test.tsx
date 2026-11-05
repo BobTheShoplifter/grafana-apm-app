@@ -3,6 +3,8 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ServiceOverview from './ServiceOverview';
 import * as capabilitiesUtils from '../utils/capabilities';
+import * as datasourceUtils from '../utils/datasources';
+import * as client from '../api/client';
 
 /**
  * Tab registry tests: the Issues tab is capability-gated on Loki exactly like
@@ -19,6 +21,11 @@ jest.mock('@grafana/runtime', () => ({
   getAppEvents: () => ({ publish: jest.fn() }),
   locationService: { push: jest.fn() },
   getBackendSrv: () => ({ fetch: jest.fn() }),
+}));
+
+jest.mock('../api/client', () => ({
+  ...jest.requireActual('../api/client'),
+  getAlertTemplate: jest.fn(),
 }));
 
 jest.mock('../utils/capabilities', () => ({
@@ -56,7 +63,7 @@ jest.mock('../utils/datasources', () => ({
     isLogsEnvSpecific: false,
   }),
   useHasEnvironmentOverrides: () => false,
-  usePluginLabelOverrides: () => ({}),
+  usePluginLabelOverrides: jest.fn(() => ({})),
 }));
 
 jest.mock('./buildServiceScene', () => ({
@@ -72,7 +79,11 @@ jest.mock('./tabs/BackendTab', () => ({ BackendTab: () => <div data-testid="back
 jest.mock('./tabs/FrontendTab', () => ({ FrontendTab: () => <div data-testid="frontend-tab" /> }));
 jest.mock('./tabs/DependenciesTab', () => ({ DependenciesTab: () => <div data-testid="dependencies-tab" /> }));
 jest.mock('./tabs/TracesTab', () => ({ TracesTab: () => <div data-testid="traces-tab" /> }));
-jest.mock('./tabs/LogsTab', () => ({ LogsTab: () => <div data-testid="logs-tab" /> }));
+jest.mock('./tabs/LogsTab', () => ({
+  LogsTab: ({ clusterFilter, clusterLabel }: { clusterFilter?: string; clusterLabel?: string }) => (
+    <div data-testid="logs-tab" data-cluster-filter={clusterFilter} data-cluster-label={clusterLabel} />
+  ),
+}));
 jest.mock('./tabs/DatabaseTab', () => ({ DatabaseTab: () => <div data-testid="database-tab" /> }));
 jest.mock('./tabs/ProfilingTab', () => ({ ProfilingTab: () => <div data-testid="profiling-tab" /> }));
 
@@ -177,6 +188,34 @@ describe('ServiceOverview tab registry', () => {
   });
 });
 
+describe('ServiceOverview alert action', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (capabilitiesUtils.useCapabilities as jest.Mock).mockReturnValue({ caps: baseCaps, loading: false });
+  });
+
+  it.each([
+    ['no environment', '/services/team-a/my-svc'],
+    ['multiple environments', '/services/team-a/my-svc?environment=dev,prod'],
+  ])('disables the header alert action for %s', (_name, route) => {
+    renderPage([route]);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+
+    const action = screen.getByText('Alert on error rate — select a team and exactly one environment');
+    expect(action.closest('[role="menuitem"]')).toBeDisabled();
+    fireEvent.click(action);
+    expect(client.getAlertTemplate).not.toHaveBeenCalled();
+  });
+
+  it('enables the header alert action for one environment', () => {
+    renderPage(['/services/team-a/my-svc?environment=prod']);
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }));
+
+    const action = screen.getByText('Alert on error rate');
+    expect(action.closest('[role="menuitem"]')).not.toBeDisabled();
+  });
+});
+
 describe('ServiceOverview Profiling tab (M7 Pyroscope gating)', () => {
   const capsWithPyroscope = {
     ...baseCaps,
@@ -188,6 +227,20 @@ describe('ServiceOverview Profiling tab (M7 Pyroscope gating)', () => {
     renderPage();
 
     expect(screen.queryByText('Profiling')).not.toBeInTheDocument();
+  });
+
+  describe('ServiceOverview Logs tab', () => {
+    it('passes the configured environment label when filtering a shared Loki datasource', () => {
+      (capabilitiesUtils.useCapabilities as jest.Mock).mockReturnValue({ caps: baseCaps, loading: false });
+      (datasourceUtils.usePluginLabelOverrides as jest.Mock).mockReturnValue({
+        deploymentEnvLabel: 'deployment_environment',
+      });
+
+      renderPage(['/services/team-a/my-svc?tab=logs&environment=dev']);
+
+      expect(screen.getByTestId('logs-tab')).toHaveAttribute('data-cluster-filter', 'dev');
+      expect(screen.getByTestId('logs-tab')).toHaveAttribute('data-cluster-label', 'deployment_environment');
+    });
   });
 
   it('shows the Profiling tab and mounts it when a Pyroscope datasource is available', () => {

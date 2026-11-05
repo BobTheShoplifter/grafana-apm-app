@@ -15,6 +15,8 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
+
+	"github.com/nais/grafana-otel-plugin/pkg/plugin/queries"
 )
 
 // AI investigation of one service.
@@ -171,7 +173,7 @@ func (a *App) handleInvestigate(w http.ResponseWriter, req *http.Request) {
 		end:       end,
 		question:  question,
 		emit:      stream.send,
-		http:      &http.Client{Timeout: investigationToolTimeout},
+		http:      newInvestigationHTTPClient(),
 	}
 
 	logger := log.DefaultLogger.With("component", "investigate", "user", user, "namespace", namespace, "service", service)
@@ -184,6 +186,13 @@ func (a *App) handleInvestigate(w http.ResponseWriter, req *http.Request) {
 	logger.Info("Investigation finished", "rounds", rounds,
 		"input_tokens", usage.Input, "output_tokens", usage.Output,
 		"cache_read_tokens", usage.CacheRead, "cache_write_tokens", usage.CacheWrite)
+}
+
+// newInvestigationHTTPClient is the client for the tools' datasource-proxy reads. Like the
+// app's other authenticated proxy clients, it rejects redirects, so the forwarded credentials
+// never follow a Location header elsewhere.
+func newInvestigationHTTPClient() *http.Client {
+	return &http.Client{Timeout: investigationToolTimeout, Transport: queries.RedirectBlockingTransport(nil)}
 }
 
 // investigationWindow validates the requested window. A missing window means the last hour.

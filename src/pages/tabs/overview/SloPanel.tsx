@@ -6,6 +6,7 @@ import { Button, Icon, LoadingPlaceholder, RadioButtonGroup, TextLink, Tooltip, 
 import { css } from '@emotion/css';
 import { buildAlertRuleUrl } from '../../../api/client';
 import { apmDocs } from '../../../utils/docsLinks';
+import { hasAlertRoutingContext } from '../../../utils/alertRouting';
 import { useFetch } from '../../../utils/useFetch';
 import { useCapabilities, getMetricNames } from '../../../utils/capabilities';
 import { usePluginDatasources, usePluginLabelOverrides } from '../../../utils/datasources';
@@ -45,6 +46,7 @@ function parseTargetParam(raw: string | null): number {
  */
 export function SloPanel({ namespace, service, environment }: SloPanelProps) {
   const styles = useStyles2(getStyles);
+  const canRouteAlert = hasAlertRoutingContext(namespace, environment);
   const [searchParams, setSearchParams] = useSearchParams();
   const target = parseTargetParam(searchParams.get('slo'));
 
@@ -131,7 +133,7 @@ export function SloPanel({ namespace, service, environment }: SloPanelProps) {
               size="sm"
               variant="secondary"
               icon="bell"
-              disabled={creating !== null}
+              disabled={creating !== null || !canRouteAlert}
               onClick={() => createAlert('fast')}
             >
               Fast burn (page)
@@ -140,7 +142,7 @@ export function SloPanel({ namespace, service, environment }: SloPanelProps) {
               size="sm"
               variant="secondary"
               icon="bell"
-              disabled={creating !== null}
+              disabled={creating !== null || !canRouteAlert}
               onClick={() => createAlert('slow')}
             >
               Slow burn (ticket)
@@ -151,6 +153,7 @@ export function SloPanel({ namespace, service, environment }: SloPanelProps) {
             <TextLink href={apmDocs.createAlerts()} external variant="bodySmall" className={styles.docsLink}>
               About alert templates
             </TextLink>
+            {!canRouteAlert && <span>Select a team and exactly one environment to create an alert.</span>}
           </div>
         </>
       ) : null}

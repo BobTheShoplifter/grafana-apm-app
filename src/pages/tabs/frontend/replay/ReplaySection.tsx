@@ -27,35 +27,39 @@ export interface ReplaySectionProps extends ReplayQueryOptions {
 }
 
 export function ReplaySection({ mode, exceptionTsMs, autoLoad, ...query }: ReplaySectionProps) {
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  // An auto-loading section starts out loading, so its mount effect only has to fetch.
+  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(autoLoad ? 'loading' : 'idle');
   const [data, setData] = useState<ReplayData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Session switches remount this component (the drawer keys it by
   // sessionId), so no reset-on-change effect is needed here.
-  const load = async () => {
-    setStatus('loading');
-    setError(null);
-    try {
-      const result = await fetchReplay(query);
-      if (result) {
-        setData(result);
-        setStatus('ready');
-      } else {
-        setError('No replay chunks found for this session in the selected time range.');
-        setStatus('error');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load replay data.');
+  const settle = (result: ReplayData | null) => {
+    if (result) {
+      setData(result);
+      setStatus('ready');
+    } else {
+      setError('No replay chunks found for this session in the selected time range.');
       setStatus('error');
     }
   };
+  const fail = (err: unknown) => {
+    setError(err instanceof Error ? err.message : 'Failed to load replay data.');
+    setStatus('error');
+  };
+
+  const load = () => {
+    setStatus('loading');
+    setError(null);
+    fetchReplay(query).then(settle, fail);
+  };
 
   // Callers that pass autoLoad key this component by session, so a mount means a new
-  // session and exactly one fetch.
+  // session and exactly one fetch. It starts out loading (above), so the effect only fetches;
+  // state changes happen in the promise callbacks, after the fetch settles.
   useEffect(() => {
-    if (autoLoad && status === 'idle') {
-      void load();
+    if (autoLoad) {
+      fetchReplay(query).then(settle, fail);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoLoad]);

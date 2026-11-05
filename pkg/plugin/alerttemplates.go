@@ -45,9 +45,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/useragent"
 	"github.com/grafana/grafana-plugin-sdk-go/config"
-
 	"github.com/nais/grafana-otel-plugin/pkg/plugin/queries"
 )
 
@@ -114,8 +114,9 @@ const (
 // ruleFormValuesV1 until a real incompatible major ships, then add its case
 // here together with the alternate builder and a new golden snapshot.
 //
-//nolint:unparam // Intentionally returns the one shipped shape today; the
 // parameter and switch are the forward-looking version-branch seam (#77).
+//
+//nolint:unparam // Intentionally returns the one shipped shape today; the
 func selectRuleFormValuesSchema(grafanaMajor int) ruleFormValuesSchema {
 	switch {
 	case grafanaMajor >= 13:
@@ -165,9 +166,14 @@ type alertQuery struct {
 	Model             map[string]any          `json:"model"`
 }
 
+type alertFolder struct {
+	Title string `json:"title"`
+	UID   string `json:"uid"`
+}
+
 // ruleFormDefaults is the partial RuleFormValues we pre-fill. Grafana merges
-// it with its own form defaults, so anything omitted (folder, evaluation
-// group, contact point) is chosen by the user in Grafana's editor.
+// it with its own form defaults, so anything omitted (evaluation group,
+// contact point, or a folder without an exact team match) is chosen in the editor.
 type ruleFormDefaults struct {
 	Type        string          `json:"type"`
 	Name        string          `json:"name"`
@@ -176,6 +182,7 @@ type ruleFormDefaults struct {
 	Queries     []alertQuery    `json:"queries"`
 	Annotations []alertKeyValue `json:"annotations"`
 	Labels      []alertKeyValue `json:"labels"`
+	Folder      *alertFolder    `json:"folder,omitempty"`
 }
 
 // alertTemplateResponse is the resource endpoint payload.
@@ -224,6 +231,19 @@ func (a *App) handleAlertTemplate(w http.ResponseWriter, req *http.Request) {
 			// param must not turn a typo'd kind into a different error.
 			http.Error(w, `{"error":"unknown alert template kind"}`, http.StatusNotFound)
 		}
+		return
+	}
+
+	if !alertTemplateKinds[req.PathValue("kind")] {
+		http.Error(w, `{"error":"unknown alert template kind"}`, http.StatusNotFound)
+		return
+	}
+	if namespace == "" || env == "" || strings.Contains(q.Get("environment"), ",") {
+		http.Error(w, `{"error":"select a team and exactly one environment to route Grafana alerts"}`, http.StatusBadRequest)
+		return
+	}
+	if routingEnv, ok := a.settings.AlertRoutingEnvironments[env]; ok && routingEnv == "" {
+		http.Error(w, `{"error":"alert routing environment is empty"}`, http.StatusServiceUnavailable)
 		return
 	}
 
@@ -287,6 +307,13 @@ func (a *App) handleAlertTemplate(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	folder, err := a.teamAlertFolder(req, namespace)
+	if err != nil {
+		log.DefaultLogger.Warn("Unable to preselect alert team folder",
+			"team", sanitizeLogValue(namespace), "error", sanitizeLogValue(err.Error()))
+	}
+	defaults.Folder = folder
+
 	// Version guard (#77): key the emitted RuleFormValues shape to the running
 	// Grafana major. Only one shape ships today, so this is the branch point,
 	// not yet a branch — see selectRuleFormValuesSchema.
@@ -308,6 +335,48 @@ func (a *App) handleAlertTemplate(w http.ResponseWriter, req *http.Request) {
 		URL:      "/alerting/new?defaults=" + url.QueryEscape(string(data)),
 		Defaults: defaults,
 	})
+}
+
+func (a *App) teamAlertFolder(req *http.Request, namespace string) (*alertFolder, error) {
+	if a.grafanaURL == "" {
+		return nil, nil
+	}
+
+	const searchLimit = 1000
+	params := url.Values{
+		"type":  {"dash-folder"},
+		"query": {namespace},
+		"limit": {strconv.Itoa(searchLimit)},
+	}
+	body, err := a.proxyGET(req.Context(), req.Header, a.resolveServiceToken(req.Context()),
+		a.grafanaURL+"/api/search?"+params.Encode())
+	if err != nil {
+		return nil, fmt.Errorf("search Grafana folders: %w", err)
+	}
+
+	var results []struct {
+		Title string `json:"title"`
+		UID   string `json:"uid"`
+		Type  string `json:"type"`
+	}
+	if err := json.Unmarshal(body, &results); err != nil {
+		return nil, fmt.Errorf("decode Grafana folder search: %w", err)
+	}
+	if len(results) >= searchLimit {
+		return nil, fmt.Errorf("grafana folder search reached the %d-result limit", searchLimit)
+	}
+
+	var match *alertFolder
+	for _, result := range results {
+		if result.Type != "dash-folder" || result.UID == "" || result.Title != namespace {
+			continue
+		}
+		if match != nil {
+			return nil, fmt.Errorf("multiple Grafana folders match team %q", namespace)
+		}
+		match = &alertFolder{Title: result.Title, UID: result.UID}
+	}
+	return match, nil
 }
 
 // errorRateDefaults builds a Mimir error-ratio rule using the detected
@@ -340,7 +409,7 @@ func (a *App) errorRateDefaults(ctx context.Context, namespace, service, env, ds
 			{Key: "summary", Value: fmt.Sprintf("More than 5%% of requests to %s are failing (5m window)", service)},
 			{Key: "nais_apm_url", Value: serviceDeepLink(namespace, service, env, "", "", "")},
 		},
-		Labels: templateLabels(namespace, service),
+		Labels: templateLabels(namespace, service, a.alertRoutingEnvironment(env), "warning"),
 	}
 }
 
@@ -390,7 +459,7 @@ func (a *App) exceptionSpikeDefaults(namespace, service, env, fingerprint string
 			// exceptionHash as legacy fallback — both resolve there too.
 			{Key: "nais_apm_url", Value: serviceDeepLink(namespace, service, env, "issues", fingerprint, hashes[0])},
 		},
-		Labels: templateLabels(namespace, service),
+		Labels: templateLabels(namespace, service, a.alertRoutingEnvironment(env), "warning"),
 	}
 }
 
@@ -418,7 +487,7 @@ func (a *App) webVitalsDefaults(namespace, service, env, dsUID string) ruleFormD
 			// A UX-health alert, not an issue — stays on the Frontend tab (#69 P10).
 			{Key: "nais_apm_url", Value: serviceDeepLink(namespace, service, env, "frontend", "", "")},
 		},
-		Labels: templateLabels(namespace, service),
+		Labels: templateLabels(namespace, service, a.alertRoutingEnvironment(env), "info"),
 	}
 }
 
@@ -467,7 +536,7 @@ sum by (%[1]s) (count_over_time(%[2]s | logfmt | %[1]s!="" | keep %[1]s [7d] off
 			// own drawer on the Issues tab (#69 P10, docs/url-contract.md).
 			{Key: "nais_apm_url", Value: serviceDeepLink(namespace, service, env, "issues", "", "{{ $labels."+fl.Hash+" }}")},
 		},
-		Labels: templateLabels(namespace, service),
+		Labels: templateLabels(namespace, service, a.alertRoutingEnvironment(env), "info"),
 	}
 }
 
@@ -695,8 +764,7 @@ func (a *App) sloBurnRateDefaults(ctx context.Context, namespace, service, env, 
 				strings.ToLower(tier), service, longWin, factorStr, sloPct, shortWin)},
 			{Key: "nais_apm_url", Value: serviceDeepLink(namespace, service, env, "", "", "")},
 		},
-		Labels: append(templateLabels(namespace, service),
-			alertKeyValue{Key: "severity", Value: sloSeverity(window)},
+		Labels: append(templateLabels(namespace, service, a.alertRoutingEnvironment(env), sloSeverity(window)),
 			alertKeyValue{Key: "slo", Value: sloPct},
 		),
 	}
@@ -799,16 +867,26 @@ func expressionQueries(threshold float64) []alertQuery {
 	}
 }
 
+func (a *App) alertRoutingEnvironment(env string) string {
+	if routingEnv, ok := a.settings.AlertRoutingEnvironments[env]; ok {
+		return routingEnv
+	}
+	return env
+}
+
 // templateLabels are attached to every created rule so teams can route and
 // audit plugin-suggested rules (`source=nais-apm`).
-func templateLabels(namespace, service string) []alertKeyValue {
-	labels := make([]alertKeyValue, 0, 3)
-	if namespace != "" {
-		labels = append(labels, alertKeyValue{Key: "namespace", Value: namespace})
-	}
+func templateLabels(namespace, service, env, severity string) []alertKeyValue {
+	labels := make([]alertKeyValue, 0, 6)
+	labels = append(labels,
+		alertKeyValue{Key: "namespace", Value: namespace},
+		alertKeyValue{Key: "team", Value: namespace},
+		alertKeyValue{Key: "env", Value: env},
+	)
 	labels = append(labels,
 		alertKeyValue{Key: "service", Value: service},
 		alertKeyValue{Key: "source", Value: "nais-apm"},
+		alertKeyValue{Key: "severity", Value: severity},
 	)
 	return labels
 }
