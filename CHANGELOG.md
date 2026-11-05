@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.24.14
+
+### Bug Fixes
+
+* the Jobs page opens a job's logs filtered on the Kubernetes namespace label that pod log
+  streams carry, not the span-metric service namespace, which matched nothing. The range is
+  the window around the job's last run, so a daily or weekly job's output is in view.
+
 ## 0.24.13
 
 ### Bug Fixes
