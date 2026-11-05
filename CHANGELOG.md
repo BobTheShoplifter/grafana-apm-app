@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.26.0
+
+### Features
+
+* an **Investigate** button on each service runs an AI investigation through the Anthropic
+  API: the model reads the service's metrics, logs and traces with read-only queries through
+  Grafana's datasource proxy, streams its progress, and writes up what is wrong and why. Off
+  unless `secureJsonData.anthropicApiKey` is set; Editors and Admins only.
+
+### Upstream
+
+* merges nais-apm-app 0.25.0 to 0.25.8, including: authenticated proxy calls reject redirects,
+  log filtering when environments share one Loki, low-traffic services across the selected
+  range, the browser-volume environment filter, alert routing fixes, and a lighter service
+  inventory query.
+
 ## 0.24.14
 
 ### Bug Fixes
