@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import JobsInventory from './JobsInventory';
+import JobsInventory, { buildJobLogsUrl } from './JobsInventory';
 import { JobsResponse } from '../api/jobs';
 
 const response: JobsResponse = {
@@ -131,5 +131,30 @@ describe('JobsInventory', () => {
     await screen.findByText('nightly-sync');
     expect(screen.getByRole('textbox', { name: 'Filter jobs' })).toBeInTheDocument();
     expect(screen.getByRole('table', { name: 'Jobs' })).toBeInTheDocument();
+  });
+});
+
+describe('buildJobLogsUrl', () => {
+  // The Explore state is the JSON `left` query parameter.
+  const explore = (url: string) => JSON.parse(new URLSearchParams(url.split('?')[1]).get('left') ?? '{}');
+
+  it('scopes by the Kubernetes namespace label, not service_namespace', () => {
+    const { queries } = explore(buildJobLogsUrl('loki', response.jobs[0], 'now-24h'));
+    expect(queries[0].expr).toBe('{service_name="nightly-sync", namespace="team-a"}');
+  });
+
+  it('opens the window around the last run, with a minute either side', () => {
+    const { range } = explore(buildJobLogsUrl('loki', response.jobs[0], 'now-24h'));
+    expect(range).toEqual({ from: String(1_700_000_000_000 - 60_000), to: String(1_700_000_030_000 + 60_000) });
+  });
+
+  it('runs to now when the last run has not completed', () => {
+    const { range } = explore(buildJobLogsUrl('loki', response.jobs[1], 'now-24h'));
+    expect(range).toEqual({ from: String(1_700_000_500_000 - 60_000), to: 'now' });
+  });
+
+  it("falls back to the page's range without a last run", () => {
+    const { range } = explore(buildJobLogsUrl('loki', { ...response.jobs[0], lastRun: undefined }, 'now-7d'));
+    expect(range).toEqual({ from: 'now-7d', to: 'now' });
   });
 });

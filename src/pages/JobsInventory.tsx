@@ -13,7 +13,34 @@ import { useFetch } from '../utils/useFetch';
 import { RefreshControl } from '../components/RefreshControl';
 import { usePluginDatasources } from '../utils/datasources';
 import { buildLokiExploreUrl } from '../utils/explore';
+import { otel } from '../otelconfig';
 import { createServiceSearchIndex, searchServices } from '../utils/serviceSearch';
+
+/** Margin around a run, so the lines logged just before and after it stay in view. */
+const RUN_LOGS_MARGIN_MS = 60_000;
+
+/**
+ * Explore URL for a job's logs.
+ *
+ * Job pods are plain Kubernetes workloads: their streams carry the Kubernetes namespace label,
+ * not the OTel service namespace the span-metric views filter on, and a Loki without that label
+ * matched nothing. The range is the window around the last run when it is known, because a
+ * daily or weekly job's run usually lies outside the page's range; otherwise the page's range.
+ */
+export function buildJobLogsUrl(logsUid: string, job: JobEntry, pageFrom: string): string {
+  const run = job.lastRun;
+  const range = run?.startMs
+    ? {
+        from: String(run.startMs - RUN_LOGS_MARGIN_MS),
+        to: run.completionMs ? String(run.completionMs + RUN_LOGS_MARGIN_MS) : 'now',
+      }
+    : { from: pageFrom, to: 'now' };
+  return buildLokiExploreUrl(logsUid, job.name, {
+    namespace: job.namespace,
+    serviceNamespaceLabel: otel.runtime.namespaceLabel,
+    ...range,
+  });
+}
 
 type SortField = 'name' | 'namespace' | 'cluster' | 'schedule' | 'lastRun' | 'nextRun' | 'streak';
 type SortDir = 'asc' | 'desc';
@@ -241,12 +268,7 @@ function JobsInventory() {
   };
 
   const openLogs = (job: JobEntry) => {
-    const url = buildLokiExploreUrl(logsUid, job.name, {
-      namespace: job.namespace,
-      from,
-      to: 'now',
-    });
-    window.open(url, '_blank', 'noopener');
+    window.open(buildJobLogsUrl(logsUid, job, from), '_blank', 'noopener');
   };
 
   return (
