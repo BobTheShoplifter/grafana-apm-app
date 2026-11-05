@@ -44,6 +44,7 @@ already operate.
 - **Cross-signal navigation** — click any spike to jump to the relevant traces or logs in Explore
 - **Environment filtering** — per-environment Tempo/Loki datasource overrides
 - **Zero config** — auto-detects span metric names, duration units, and available capabilities from your data
+- **AI investigation** _(optional)_ — an **Investigate** button on each service: Claude queries the service's metrics, logs and traces read-only, streams its progress, and writes up what is wrong and why, citing the queries behind each finding
 
 ![Service Overview](https://raw.githubusercontent.com/nais/grafana-apm-app/main/src/img/screenshot-service-overview.png)
 ![Server Endpoints](https://raw.githubusercontent.com/nais/grafana-apm-app/main/src/img/screenshot-service-server.png)
@@ -122,6 +123,13 @@ Then enable the plugin under **Administration > Plugins** in Grafana.
    card, fill the **nais API (optional)** fieldset (URL + token) — or provision
    `jsonData.naisApiUrl` / `secureJsonData.naisApiToken` — and ensure netpol
    egress from Grafana to the nais API host (see [Platform dependencies](#platform-dependencies))
+6. _(Optional)_ To enable the AI investigation, set an Anthropic API key in the
+   **AI investigation (optional)** fieldset — or provision
+   `secureJsonData.anthropicApiKey` and, if needed, `jsonData.investigation`
+   (`model`, `effort`, `maxRounds`, `context`). Grafana needs egress to
+   `api.anthropic.com`. Runs are limited to Editors and Admins, use only
+   read-only queries through Grafana's datasource proxy, and send the data they
+   read to Anthropic.
 
 For per-environment datasource overrides, authentication setup, and
 troubleshooting, see [docs/configuration.md](https://github.com/nais/grafana-apm-app/blob/main/docs/configuration.md).

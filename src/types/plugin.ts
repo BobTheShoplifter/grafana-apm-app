@@ -54,4 +54,17 @@ export interface AppPluginSettings {
   ingressAliases?: Record<string, string>;
   /** Global ops watchlist — services monitored on the Ops Status Board. Editable by any user via the backend API. */
   opsWatchlist?: OpsWatchlistEntry[];
+  /** AI investigation settings. The Anthropic API key is secureJsonData.anthropicApiKey. */
+  investigation?: InvestigationSettings;
+}
+
+export interface InvestigationSettings {
+  /** Claude model id. Default claude-opus-5-5. */
+  model?: string;
+  /** low, medium, high, xhigh or max. Default high. */
+  effort?: string;
+  /** Tool-calling rounds per run. Default 12, at most 25. */
+  maxRounds?: number;
+  /** Notes appended to the investigator's instructions: label conventions, what runs where. */
+  context?: string;
 }

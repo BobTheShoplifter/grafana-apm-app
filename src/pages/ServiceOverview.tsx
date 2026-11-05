@@ -14,6 +14,7 @@ import { PageHeader } from '../components/PageHeader';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { usePluginDatasources, useHasEnvironmentOverrides, usePluginLabelOverrides } from '../utils/datasources';
 import { useTimeRange } from '../utils/timeRange';
+import { InvestigateButton } from '../components/Investigate/InvestigateDrawer';
 import { useCapabilities, getMetricNames, getPyroscope } from '../utils/capabilities';
 import { useAppNavigate, sanitizeParam } from '../utils/navigation';
 import { useServiceData } from '../utils/useServiceData';
@@ -321,6 +322,13 @@ function ServiceOverviewInner({ namespace, service }: { namespace: string; servi
                   placeholder="Environment"
                 />
               )}
+              <InvestigateButton
+                namespace={namespace}
+                service={service}
+                environment={envFilter || undefined}
+                fromMs={fromMs}
+                toMs={toMs}
+              />
               <HeaderTimeControls />
               {/* Secondary actions live in a kebab so the header holds one
                   line at 1280px now that the time picker owns the width. */}

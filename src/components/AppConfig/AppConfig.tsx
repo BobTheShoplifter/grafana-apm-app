@@ -3,7 +3,18 @@ import { lastValueFrom } from 'rxjs';
 import { css } from '@emotion/css';
 import { AppPluginMeta, GrafanaTheme2, PluginConfigPageProps, PluginMeta } from '@grafana/data';
 import { getBackendSrv } from '@grafana/runtime';
-import { Alert, Button, Field, FieldSet, IconButton, Input, SecretInput, Combobox, useStyles2 } from '@grafana/ui';
+import {
+  Alert,
+  Button,
+  Field,
+  FieldSet,
+  IconButton,
+  Input,
+  SecretInput,
+  Combobox,
+  TextArea,
+  useStyles2,
+} from '@grafana/ui';
 import { testIds } from '../testIds';
 import { Capabilities, getCapabilities, OpsWatchlistEntry } from '../../api/client';
 import { AppPluginSettings, DsRef, EnvAwareDs, LabelOverrides } from '../../types/plugin';
@@ -44,7 +55,16 @@ type State = {
   naisApiToken: string;
   naisTokenConfigured: boolean;
   naisTokenReset: boolean;
+  anthropicApiKey: string;
+  anthropicKeyConfigured: boolean;
+  anthropicKeyReset: boolean;
+  investigationModel: string;
+  investigationEffort: string;
+  investigationMaxRounds: string;
+  investigationContext: string;
 };
+
+const EFFORT_OPTIONS = ['low', 'medium', 'high', 'xhigh', 'max'].map((v) => ({ label: v, value: v }));
 
 function parseEnvOverrides(
   metricsDs: EnvAwareDs | undefined,
@@ -90,6 +110,13 @@ const AppConfig = ({ plugin }: AppConfigProps) => {
     naisApiToken: '',
     naisTokenConfigured: secureJsonFields?.naisApiToken === true,
     naisTokenReset: false,
+    anthropicApiKey: '',
+    anthropicKeyConfigured: secureJsonFields?.anthropicApiKey === true,
+    anthropicKeyReset: false,
+    investigationModel: jsonData?.investigation?.model || '',
+    investigationEffort: jsonData?.investigation?.effort || '',
+    investigationMaxRounds: jsonData?.investigation?.maxRounds ? String(jsonData.investigation.maxRounds) : '',
+    investigationContext: jsonData?.investigation?.context || '',
   });
   const [caps, setCaps] = useState<Capabilities | null>(null);
   const [detecting, setDetecting] = useState(false);
@@ -338,6 +365,19 @@ const AppConfig = ({ plugin }: AppConfigProps) => {
     } else if (state.naisTokenReset) {
       secureJsonData.naisApiToken = '';
     }
+    if (state.anthropicApiKey) {
+      secureJsonData.anthropicApiKey = state.anthropicApiKey;
+    } else if (state.anthropicKeyReset) {
+      secureJsonData.anthropicApiKey = '';
+    }
+
+    const maxRounds = parseInt(state.investigationMaxRounds, 10);
+    const investigation = {
+      model: state.investigationModel || undefined,
+      effort: state.investigationEffort || undefined,
+      maxRounds: Number.isFinite(maxRounds) && maxRounds > 0 ? maxRounds : undefined,
+      context: state.investigationContext.trim() || undefined,
+    };
 
     updatePluginAndReload(plugin.meta.id, {
       enabled,
@@ -364,6 +404,7 @@ const AppConfig = ({ plugin }: AppConfigProps) => {
         ingressAliases: Object.keys(ingressAliases).length > 0 ? ingressAliases : undefined,
         opsWatchlist: opsWatchlist.length > 0 ? opsWatchlist : undefined,
         naisApiUrl: state.naisApiUrl || undefined,
+        investigation: Object.values(investigation).some((v) => v !== undefined) ? investigation : undefined,
       },
       secureJsonData: Object.keys(secureJsonData).length > 0 ? secureJsonData : undefined,
     } as any);
@@ -643,6 +684,76 @@ const AppConfig = ({ plugin }: AppConfigProps) => {
             onReset={() =>
               setState((prev) => ({ ...prev, naisApiToken: '', naisTokenConfigured: false, naisTokenReset: true }))
             }
+          />
+        </Field>
+      </FieldSet>
+
+      <FieldSet label="AI investigation (optional)" className={s.marginTop}>
+        <p className={s.description}>
+          Adds an <strong>Investigate</strong> button to each service: Claude reads the service&apos;s metrics, logs and
+          traces with read-only queries and writes up what is wrong and why. The data it reads is sent to Anthropic.
+          Editors and admins can start a run.
+        </p>
+        <Field
+          label="Anthropic API key"
+          description="Turns the feature on. Stored encrypted; only sent when you enter a new value."
+        >
+          <SecretInput
+            width={40}
+            isConfigured={state.anthropicKeyConfigured}
+            value={state.anthropicApiKey}
+            placeholder="Anthropic API key"
+            onChange={(e) =>
+              setState((prev) => ({ ...prev, anthropicApiKey: e.currentTarget.value, anthropicKeyReset: false }))
+            }
+            onReset={() =>
+              setState((prev) => ({
+                ...prev,
+                anthropicApiKey: '',
+                anthropicKeyConfigured: false,
+                anthropicKeyReset: true,
+              }))
+            }
+          />
+        </Field>
+        <Field label="Model" description="Claude model id. Leave empty for claude-opus-5-5.">
+          <Input
+            width={40}
+            value={state.investigationModel}
+            placeholder="claude-opus-5-5"
+            onChange={onChange('investigationModel')}
+          />
+        </Field>
+        <Field label="Effort" description="How hard the model thinks. Leave empty for high.">
+          <Combobox
+            width={20}
+            isClearable
+            options={EFFORT_OPTIONS}
+            value={state.investigationEffort || null}
+            placeholder="high"
+            onChange={(v) => setState((prev) => ({ ...prev, investigationEffort: v?.value ?? '' }))}
+          />
+        </Field>
+        <Field label="Max rounds" description="Tool-calling rounds per run, 1-25. Leave empty for 12.">
+          <Input
+            width={10}
+            type="number"
+            value={state.investigationMaxRounds}
+            placeholder="12"
+            onChange={onChange('investigationMaxRounds')}
+          />
+        </Field>
+        <Field
+          label="Platform notes"
+          description="Added to the investigator's instructions: label conventions, what runs where, what to check first."
+        >
+          <TextArea
+            rows={4}
+            value={state.investigationContext}
+            onChange={(e) => {
+              const value = e.currentTarget.value;
+              setState((prev) => ({ ...prev, investigationContext: value }));
+            }}
           />
         </Field>
       </FieldSet>

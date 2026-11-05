@@ -94,6 +94,23 @@ type PluginSettings struct {
 	// Console GraphQL endpoint, e.g. https://console.<tenant>.cloud.nais.io/graphql.
 	// The token lives in secureJsonData under "naisApiToken".
 	NaisAPIURL string `json:"naisApiUrl,omitempty"`
+
+	// Investigation configures the AI investigation of a service. The Anthropic API key lives
+	// in secureJsonData under "anthropicApiKey"; without it the feature is off.
+	Investigation InvestigationSettings `json:"investigation,omitempty"`
+}
+
+// InvestigationSettings tunes the AI investigation. Every field is optional.
+type InvestigationSettings struct {
+	// Model is the Claude model id. Default: claude-opus-5-5.
+	Model string `json:"model,omitempty"`
+	// Effort is the model's effort level: low, medium, high, xhigh or max. Default: high.
+	Effort string `json:"effort,omitempty"`
+	// MaxRounds caps the model's tool-calling rounds per investigation. Default 12, at most 25.
+	MaxRounds int `json:"maxRounds,omitempty"`
+	// Context is free text appended to the system prompt: label conventions, what runs where,
+	// anything an investigator of this platform should know.
+	Context string `json:"context,omitempty"`
 }
 
 // Capabilities represents the detected OTel data capabilities.

@@ -115,6 +115,45 @@ describe('Components/AppConfig', () => {
     expect(payload.secureJsonData).toBeUndefined();
   });
 
+  test('saves the AI investigation key and settings', async () => {
+    const plugin = { meta: { ...props.plugin.meta, enabled: true } };
+
+    await act(async () => {
+      // @ts-ignore
+      render(<AppConfig plugin={plugin} query={props.query} />);
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByPlaceholderText('Anthropic API key'), { target: { value: 'sk-test' } });
+      fireEvent.change(screen.getByPlaceholderText('claude-opus-5-5'), { target: { value: 'claude-sonnet-5-5' } });
+      fireEvent.change(screen.getByPlaceholderText('12'), { target: { value: '8' } });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(testIds.appConfig.submit));
+    });
+
+    const payload = submittedPayload();
+    expect(payload.secureJsonData?.anthropicApiKey).toBe('sk-test');
+    expect(payload.jsonData.investigation).toEqual({ model: 'claude-sonnet-5-5', maxRounds: 8 });
+  });
+
+  test('leaves investigation settings out when none are set', async () => {
+    const plugin = { meta: { ...props.plugin.meta, enabled: true } };
+
+    await act(async () => {
+      // @ts-ignore
+      render(<AppConfig plugin={plugin} query={props.query} />);
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId(testIds.appConfig.submit));
+    });
+
+    const payload = submittedPayload();
+    expect(payload.jsonData.investigation).toBeUndefined();
+    expect(payload.secureJsonData?.anthropicApiKey).toBeUndefined();
+  });
+
   test('sends the nais API token via secureJsonData only when a new value is entered', async () => {
     const plugin = { meta: { ...props.plugin.meta, enabled: true } };
 

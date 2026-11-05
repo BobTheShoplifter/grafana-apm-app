@@ -47,6 +47,7 @@ type App struct {
 	respCache *responseCache // short-lived response cache for expensive queries
 
 	naisToken      string         // nais Console API token (scorecard enrichment + deploy sync)
+	anthropicKey   string         // Anthropic API key for the AI investigation (secureJsonData.anthropicApiKey)
 	scorecardOnce  sync.Once      // lazily builds the dedicated long-TTL scorecard cache
 	scorecardCache *responseCache // see scorecardResponseCache()
 
@@ -161,6 +162,12 @@ func NewApp(_ context.Context, settings backend.AppInstanceSettings) (instancemg
 	// (jsonData.naisApiUrl) and token (secureJsonData.naisApiToken) are set.
 	app.naisToken = settings.DecryptedSecureJSONData["naisApiToken"]
 	app.startNaisDeploySync(app.naisToken)
+
+	// AI investigation: on only when an Anthropic API key is configured.
+	app.anthropicKey = strings.TrimSpace(settings.DecryptedSecureJSONData["anthropicApiKey"])
+	if app.anthropicKey != "" {
+		logger.Info("AI investigation enabled", "model", app.investigationSettings().model)
+	}
 
 	mux := http.NewServeMux()
 	app.registerRoutes(mux)
@@ -405,6 +412,8 @@ func (a *App) routes() []appRoute {
 		{"/services/{namespace}/{service}/database/nplusone", a.handleDatabaseNPlusOne},
 		{"/services/{namespace}/{service}/scorecard", a.handleScorecard},
 		{"/services/{namespace}/{service}/alerts", a.handleServiceAlerts},
+		{"/services/{namespace}/{service}/investigate", a.handleInvestigate},
+		{"/investigate/status", a.handleInvestigateStatus},
 		{"/jobs", a.handleJobs},
 		{"/service-map", a.handleServiceMap},
 		{"/service-map/clustered", a.handleClusteredServiceMap},

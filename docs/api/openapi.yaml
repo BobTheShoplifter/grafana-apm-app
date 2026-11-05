@@ -655,6 +655,51 @@ paths:
                   unavailable: { type: boolean }
                   errorMessage: { type: string }
 
+  /services/{namespace}/{service}/investigate:
+    post:
+      tags: [experimental]
+      summary: AI investigation of a service (server-sent events).
+      description: |
+        Runs a read-only investigation with Claude over the service's metrics, logs and traces,
+        streaming progress as server-sent events: start, progress, tool_call, tool_result, text,
+        done and error. Editor or Admin role. Needs secureJsonData.anthropicApiKey.
+      parameters:
+        - { $ref: "#/components/parameters/namespacePath" }
+        - { $ref: "#/components/parameters/servicePath" }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                question: { type: string, maxLength: 2000 }
+                from: { type: integer, description: "Window start, epoch ms. Default: an hour ago." }
+                to: { type: integer, description: "Window end, epoch ms. Default: now." }
+                environment: { type: string }
+      responses:
+        "200":
+          description: The event stream.
+          content:
+            text/event-stream:
+              schema: { type: string }
+        "403": { description: The caller is not an Editor or Admin. }
+        "412": { description: No Anthropic API key is configured. }
+
+  /investigate/status:
+    get:
+      tags: [experimental]
+      summary: Whether the AI investigation is configured, and its model.
+      responses:
+        "200":
+          description: Availability.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  available: { type: boolean }
+                  model: { type: string }
+
   /jobs:
     get:
       tags: [experimental]
