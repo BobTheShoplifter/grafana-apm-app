@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.27.3
+
+### Bug Fixes
+
+* the trace drawer's logs find a trace ID whatever its case, and a logs query split over several
+  frames is counted as one when checking the 1,000-line limit.
+
 ## 0.27.2
 
 ### Bug Fixes
