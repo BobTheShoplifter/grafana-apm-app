@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.27.1
+
+### Bug Fixes
+
+* the trace drawer's **Logs** tab waits for the trace instead of searching the page's whole
+  range, and also finds log lines that carry the trace ID only in Loki's `trace_id`
+  structured metadata, as OTLP logs do.
+* a failed trace lookup shows its error; "Trace not found" is only for a trace Tempo does not
+  have.
+* without a configured environment label, the built-in one keeps a shared Loki scoped to the
+  selected environment in the drawer's logs, as in the Logs tab.
+* a Ctrl/Cmd-click on a trace link opens the page as it is now, not as it was when the data
+  loaded; span-reference links inside a trace open in a new tab on a Ctrl/Cmd-click too.
+* the drawer opens whenever there is a Tempo, even when the default one is down, and its Logs
+  tab follows the environment's own Loki.
+
 ## 0.27.0
 
 ### Features
