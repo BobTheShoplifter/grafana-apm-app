@@ -430,7 +430,14 @@ export async function getNamespaceAlerts(namespace: string): Promise<NamespaceAl
 
 // ---- Alert rule templates (#65 Phase 1) ----
 
-export type AlertTemplateKind = 'error-rate' | 'exception-spike' | 'web-vitals' | 'new-exceptions' | 'slo-burn-rate';
+export type AlertTemplateKind =
+  | 'error-rate'
+  | 'exception-spike'
+  | 'web-vitals'
+  | 'new-exceptions'
+  | 'slo-burn-rate'
+  | 'crash-loop-back-off'
+  | 'custom';
 
 export interface AlertTemplateResponse {
   /**
@@ -534,6 +541,7 @@ export interface ServiceAlertRule extends AlertRuleSummary {
 
 export interface ServiceAlertsResponse {
   rules: ServiceAlertRule[];
+  partial?: boolean;
   /** Both rule sources were configured but unreachable. */
   unavailable?: boolean;
   errorMessage?: string;
@@ -557,9 +565,14 @@ export function deriveFiringState(rule: AlertRuleSummary): AlertFiringState {
   };
 }
 
-export async function getServiceAlerts(namespace: string, service: string): Promise<ServiceAlertsResponse> {
+export async function getServiceAlerts(
+  namespace: string,
+  service: string,
+  environment?: string
+): Promise<ServiceAlertsResponse> {
   const resp = await fetchResource<ServiceAlertsResponse>(
-    `/services/${nsParam(namespace)}/${encodeURIComponent(service)}/alerts`
+    `/services/${nsParam(namespace)}/${encodeURIComponent(service)}/alerts`,
+    environment ? { environment } : undefined
   );
   return {
     ...resp,
