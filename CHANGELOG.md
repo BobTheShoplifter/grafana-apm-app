@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.27.0
+
+### Features
+
+* a trace opens in a side drawer over the page instead of in Explore: the trace view (waterfall,
+  span details, critical path and span filters) and a **Logs** tab with the trace's log lines
+  from every service in it, oldest first. The drawer opens from the Traces tab (a trace, or a
+  span to focus it), from chart exemplars, from a log line's trace link, from the Database
+  tab's trace links and from a server exception's trace. It is URL state (`traceId`,
+  `spanId`): Back closes it, a reload keeps it, a copied link opens it again, and a new-tab
+  click opens it in a new tab. "Open in Explore" is one click away.
+
+### Bug Fixes
+
+* exemplar links use the environment-resolved Tempo. The override that was meant to do it never
+  applied: exemplars arrive as annotations, which field overrides do not reach, and a field's
+  datasource links cannot be replaced by an override, only added to.
+
+### Upstream
+
+* merges nais-apm-app 0.25.9 to 0.26.0: alert readiness that follows the service alert rules,
+  refreshed alert templates, and the plugin service account's access to its own settings.
+
 ## 0.26.0
 
 ### Features
