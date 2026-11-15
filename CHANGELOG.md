@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.27.2
+
+### Bug Fixes
+
+* a log line links to its trace from its labels (parsed fields and structured metadata), so the
+  link works in the Logs tab, which shows each line's message rather than the raw line.
+* the trace drawer's logs keep service names with `+`, brackets or non-ASCII text, and every
+  selected environment, instead of silently dropping them; a 64-bit (B3) trace ID logged as
+  16 characters is found too.
+* only Tempo's own "trace not found" counts as a missing trace; a missing datasource is shown as
+  an error.
+* the trace shows again when the Logs tab goes away while selected, and a logs query that hits
+  its 1,000-line limit says so, with a link to all lines in Explore.
+
 ## 0.27.1
 
 ### Bug Fixes
