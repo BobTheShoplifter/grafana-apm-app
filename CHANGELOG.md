@@ -229,6 +229,56 @@
   value is quoted text or JSON lost everything after that point, which made replay events
   undecodable and cut exception messages short.
 
+## [0.27.2](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.27.1...nais-apm-app-v0.27.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* handle Console trace timestamps and show recent traces ([#268](https://github.com/nais/grafana-apm-app/issues/268)) ([d66ab31](https://github.com/nais/grafana-apm-app/commit/d66ab31874a6e8cf334d97eb102219953b9b39ae))
+
+## [0.27.1](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.27.0...nais-apm-app-v0.27.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* hide redundant trace links in drawer logs ([#262](https://github.com/nais/grafana-apm-app/issues/262)) ([7466ac1](https://github.com/nais/grafana-apm-app/commit/7466ac1aab792fbb9c341735411b33407e014c31))
+* map service labels in local Tempo log links ([#263](https://github.com/nais/grafana-apm-app/issues/263)) ([d1215ed](https://github.com/nais/grafana-apm-app/commit/d1215ed260ee309f2e7f2f7fc2640c12f158c69b))
+
+## [0.27.0](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.26.4...nais-apm-app-v0.27.0) (2026-11-20)
+
+
+### Features
+
+* open traces in a side drawer instead of Explore ([#260](https://github.com/nais/grafana-apm-app/issues/260)) ([03c6e12](https://github.com/nais/grafana-apm-app/commit/03c6e126d37ff5a79a5a815b6270bb5caa7ea2f2))
+
+## [0.26.4](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.26.3...nais-apm-app-v0.26.4) (2026-11-19)
+
+
+### Bug Fixes
+
+* use repository variable instead of secret for plugin signing URLs ([#258](https://github.com/nais/grafana-apm-app/issues/258)) ([234ccd3](https://github.com/nais/grafana-apm-app/commit/234ccd323260718de3f766c1a20bb9ecee843cab))
+
+## [0.26.3](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.26.2...nais-apm-app-v0.26.3) (2026-11-18)
+
+
+### Bug Fixes
+
+* allow plugin signing for Novari and Ldir ([#255](https://github.com/nais/grafana-apm-app/issues/255)) ([b3ac825](https://github.com/nais/grafana-apm-app/commit/b3ac8259bf18e4bda35535922cb60b9aac78c9fc))
+
+## [0.26.2](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.26.1...nais-apm-app-v0.26.2) (2026-11-17)
+
+
+### Features
+
+* choose custom metrics to chart on service overview ([b0b7e11](https://github.com/nais/grafana-apm-app/commit/b0b7e1107b5be44b9f79845712feea6093629b98))
+
+## [0.26.1](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.26.0...nais-apm-app-v0.26.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* clarify alert template descriptions ([#249](https://github.com/nais/grafana-apm-app/issues/249)) ([29df852](https://github.com/nais/grafana-apm-app/commit/29df852acd78480386bcc3002c1e78478f3de3fc))
+
 ## [0.26.0](https://github.com/nais/grafana-apm-app/compare/nais-apm-app-v0.25.10...nais-apm-app-v0.26.0) (2026-11-13)
 
 

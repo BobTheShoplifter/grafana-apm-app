@@ -50,7 +50,11 @@ export function traceDrawerHref(traceId: string, spanId?: string): string {
   if (spanId) {
     params.set(SPAN_ID_PARAM, spanId);
   }
-  return `${location.pathname}?${params}`;
+  return locationService.getHistory().createHref({
+    pathname: location.pathname,
+    search: `?${params}`,
+    hash: location.hash,
+  });
 }
 
 /**
@@ -96,7 +100,7 @@ export function traceIdDataLink(): DataLink {
     title: 'Open trace',
     url: traceDrawerHrefTemplate('${__value.raw}'),
     onClick: (event: DataLinkClickEvent) => {
-      openTraceDrawer(event.replaceVariables?.('${__value.raw}') ?? '');
+      openTraceOnClick(event.replaceVariables?.('${__value.raw}') ?? '')(event.e);
     },
   };
 }
@@ -111,7 +115,7 @@ export function spanIdDataLink(): DataLink {
     url: traceDrawerHrefTemplate('${__data.fields.traceIdHidden}', '${__value.raw}'),
     onClick: (event: DataLinkClickEvent) => {
       const replace = event.replaceVariables;
-      openTraceDrawer(replace?.('${__data.fields.traceIdHidden}') ?? '', replace?.('${__value.raw}') ?? '');
+      openTraceOnClick(replace?.('${__data.fields.traceIdHidden}') ?? '', replace?.('${__value.raw}') ?? '')(event.e);
     },
   };
 }
@@ -126,13 +130,14 @@ export const TRACE_ID_FIELDS = ['traceID', 'trace_id', 'TraceID', 'Trace'];
 interface FieldLike {
   name: string;
   type?: string;
+  labels?: Record<string, unknown>;
   config?: { links?: unknown[] };
   values?: unknown[];
 }
 
 // The keys a parsed log line or Loki's structured metadata carries a trace ID under. A parser
 // renames a key that collides with an existing label to `<key>_extracted`.
-const TRACE_ID_LABELS = ['trace_id', 'traceID', 'traceId'].flatMap((k) => [k, `${k}_extracted`]);
+const TRACE_ID_LABELS = ['trace_id', 'traceID', 'traceId', 'traceid'].flatMap((k) => [k, `${k}_extracted`]);
 
 /**
  * A Loki log frame's trace IDs, from each line's labels (parsed fields and structured
@@ -140,14 +145,32 @@ const TRACE_ID_LABELS = ['trace_id', 'traceID', 'traceId'].flatMap((k) => [k, `$
  * derived field finds no ID in it. Undefined when no line has one.
  */
 function traceIdsFromLabels(fields: FieldLike[]): Array<string | null> | undefined {
-  const labels = fields.find((field) => field.name === 'labels')?.values;
-  if (!labels) {
+  const line = fields.find((field) => ['Line', 'line', 'body'].includes(field.name));
+  const labels = fields.find((field) => field.name.toLowerCase() === 'labels')?.values;
+  const rows = line?.values ?? labels;
+  if (!rows) {
     return undefined;
   }
-  const ids = labels.map((row) => {
-    const values = (row ?? {}) as Record<string, unknown>;
+  const ids = rows.map((_, index) => {
+    let decoded = labels?.[index];
+    if (typeof decoded === 'string') {
+      try {
+        decoded = JSON.parse(decoded);
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) {
+          throw error;
+        }
+        console.warn('Could not parse log labels; using stream labels for trace correlation.');
+        decoded = undefined;
+      }
+    }
+    const values =
+      decoded && typeof decoded === 'object' && !Array.isArray(decoded)
+        ? (decoded as Record<string, unknown>)
+        : (line?.labels ?? {});
     for (const key of TRACE_ID_LABELS) {
-      const id = typeof values[key] === 'string' ? validTraceId(values[key] as string) : '';
+      const value = values[key];
+      const id = typeof value === 'string' ? validTraceId(value) : '';
       if (id) {
         return id;
       }

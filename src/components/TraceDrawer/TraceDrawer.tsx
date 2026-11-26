@@ -201,7 +201,13 @@ function buildTraceScene(traceId: string, tracesUid: string, fromMs: number, toM
     href: traceDrawerHref(linkTraceId, linkSpanId),
     target: '_self',
     origin: {} as Field,
-    onClick: openTraceOnClick(linkTraceId, linkSpanId),
+    onClick: (event) => {
+      if (event && (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0)) {
+        window.open(traceDrawerHref(linkTraceId, linkSpanId), '_blank', 'noopener,noreferrer');
+        return;
+      }
+      openTraceOnClick(linkTraceId, linkSpanId)(event);
+    },
   });
   const panel: VizPanel = PanelBuilders.traces()
     .setTitle('')
@@ -304,6 +310,7 @@ function TraceLogs({
         refId: String.fromCharCode(65 + i),
         expr,
         queryType: 'range',
+        direction: 'forward',
         maxLines: LOG_LINE_LIMIT,
       })),
     });
@@ -316,7 +323,7 @@ function TraceLogs({
             body: PanelBuilders.logs()
               .setTitle('')
               .setDisplayMode('transparent')
-              .setData(traceDrawerData(runner))
+              .setData(traceDrawerData(runner, traceId))
               .setOption('showTime', true)
               .setOption('wrapLogMessage', true)
               .setOption('enableLogDetails', true)
@@ -331,7 +338,7 @@ function TraceLogs({
     });
     return { scene, runner };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exprKey, logsUid, fromMs, toMs]);
+  }, [exprKey, logsUid, fromMs, toMs, traceId]);
   const { data } = runner.useState();
   // A query that hit its limit may have more: say so, and offer every line in Explore.
   const truncated = hitLineLimit(data?.series, LOG_LINE_LIMIT);

@@ -24,6 +24,9 @@ alias for at least two minor releases and note the change in the CHANGELOG.
 Both fleet pages read the global `from`/`to` and `environment` params (below) and
 carry their own view/filter params (see "Page-scoped query parameters").
 
+Unix-millisecond `from`/`to` values are normalized to ISO-8601 by `useTimeRange`
+for Grafana consumers without rewriting the URL.
+
 ## Shared query parameters
 
 | Param         | Values                                                                                                                             | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -148,5 +151,8 @@ Rules for maintainers:
 - A link to a trace pairs `href={traceDrawerHref(id)}` with
   `onClick={openTraceOnClick(id)}`: a click opens the drawer in place, a
   new-tab click opens the same drawer in a new tab. Panels get the same through
-  `traceDrawerLinkOverrides` on their trace ID fields (`traceID`, `trace_id`,
+  `traceDrawerData` on their trace ID fields (`traceID`, `trace_id`,
   Loki's `TraceID`/`Trace`) and the `spanID` field of Tempo search results.
+- In the drawer's Logs tab, links to the already-open trace are omitted.
+  Trace IDs remain visible as field values, and links to other traces remain
+  available. The page's regular Logs tab keeps its trace links.

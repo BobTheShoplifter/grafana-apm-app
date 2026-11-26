@@ -16,6 +16,8 @@ permissions:
 
 jobs:
   compare:
+    # Fork PRs get a read-only token, so the bundle report cannot post a PR comment.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
 
     steps:
@@ -24,4 +26,4 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: grafana/plugin-actions/bundle-size@31f6f292a4ccc6530594b8939af571898b09cda8 # ratchet:grafana/plugin-actions/bundle-size@bundle-size/v1.1.1
+      - uses: grafana/plugin-actions/bundle-size@dfa9631cf7a2077d75d1d374935813156a770419 # ratchet:grafana/plugin-actions/bundle-size@bundle-size/v1.1.2
