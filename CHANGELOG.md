@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.28.0
+
+### Features
+
+* merged upstream nais-apm-app 0.27.2. The trace drawer is upstream now; this fork keeps its Loki
+  label override for the drawer's logs.
+* the service overview charts two custom metrics you pick and remembers them per service (upstream).
+
+### Bug Fixes
+
+* trace links open in a new tab on a modifier- or middle-click instead of the drawer (upstream).
+* trace drawer links keep Grafana's sub-path, and exemplars with no datasource link open the
+  drawer too (upstream).
+* log lines link to their trace from a lowercase `traceid` label and from JSON or legacy log
+  labels (upstream).
+* the drawer's **Logs** tab hides "Open trace" links to the trace that is already open (upstream).
+* a page opened with Unix-millisecond `from`/`to` in its URL shows the right range, and an
+  invalid range falls back to the last hour instead of breaking the Traces tab (upstream).
+* alert template descriptions are clearer (upstream).
+
 ## 0.27.3
 
 ### Bug Fixes
